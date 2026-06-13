@@ -1,4 +1,5 @@
 import express from "express";
+import cors, { CorsOptions } from "cors";
 import { serverConfig } from "./config";
 import logger from "./config/logger.config";
 import { connectDB } from "./config/db.config";
@@ -21,6 +22,30 @@ const app = express();
  * =========================================================
  */
 app.use(express.json());
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
+const corsOptions: CorsOptions = {
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void,
+  ) => {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("CORS not allowed"));
+  },
+  credentials: true,
+};
+app.use(cors(corsOptions));
 
 app.use((req, _, next) => {
   logger.info(`GRAVIL BACKEND REQUEST => ${req.method} ${req.url}`);
@@ -81,7 +106,7 @@ const startServer = async (): Promise<void> => {
 
     const server = app.listen(serverConfig.PORT, () => {
       logger.info(
-        `Auth Service running on http://localhost:${serverConfig.PORT}`,
+        `Gravil Backend running on http://localhost:${serverConfig.PORT}`,
       );
 
       logger.info("Press Ctrl+C to stop the server.");

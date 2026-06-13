@@ -34,8 +34,6 @@ export const connectDB = async (): Promise<void> => {
     logger.info(
       `MongoDB connected successfully: ${connection.connection.host}`,
     );
-
-    logger.info(`Database Name: ${connection.connection.name}`);
   } catch (error) {
     /**
      * =====================================================
