@@ -39,7 +39,7 @@ const router = Router();
 
 /**
  * @swagger
- * /menu/{cafeId}:
+ * /menus/{cafeId}:
  *   get:
  *     summary: Get all menu items of a cafe
  *     tags: [Menu]
@@ -64,7 +64,7 @@ router.get(
 
 /**
  * @swagger
- * /menu/item/{itemId}:
+ * /menus/item/{itemId}:
  *   get:
  *     summary: Get menu item details
  *     tags: [Menu]
@@ -188,7 +188,7 @@ router.post(
 
 /**
  * @swagger
- * /menu/{itemId}:
+ * /menus/{itemId}:
  *   put:
  *     summary: Update menu item
  *     tags: [Menu]
@@ -222,7 +222,7 @@ router.put(
 
 /**
  * @swagger
- * /menu/{itemId}:
+ * /menus/{itemId}:
  *   delete:
  *     summary: Delete menu item
  *     tags: [Menu]
@@ -248,7 +248,7 @@ router.delete(
 
 /**
  * @swagger
- * /menu/{itemId}/availability:
+ * /menus/{itemId}/availability:
  *   patch:
  *     summary: Toggle menu item availability
  *     tags: [Menu]
