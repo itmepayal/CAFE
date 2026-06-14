@@ -26,6 +26,8 @@ const requiredEnvVariables = [
   "GOOGLE_CLIENT_SECRET",
 
   "CLIENT_URL",
+
+  "API_BASE_URL",
 ];
 
 /**
@@ -49,6 +51,7 @@ type ServerConfig = {
   PORT: number;
   MONGODB_URI: string;
   CLIENT_URL: string;
+  API_BASE_URL: string;
 
   /**
    * =====================================================
@@ -109,6 +112,7 @@ export const serverConfig: ServerConfig = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: Number(process.env.PORT) || 5000,
   CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
+  API_BASE_URL: process.env.API_BASE_URL!,
 
   /**
    * =====================================================

@@ -1,6 +1,7 @@
 import express from "express";
 import cors, { CorsOptions } from "cors";
 import { serverConfig } from "./config";
+import swaggerUi from "swagger-ui-express";
 import logger from "./config/logger.config";
 import { connectDB } from "./config/db.config";
 import v1Router from "./routers/v1/index.router";
@@ -9,6 +10,7 @@ import {
   genericErrorHandler,
 } from "./middlewares/error.middleware";
 import cookieParser from "cookie-parser";
+import { swaggerSpec } from "./config/swagger.config";
 
 /**
  * =========================================================
@@ -54,12 +56,21 @@ app.use((req, _, next) => {
   next();
 });
 
+app.use(
+  "/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+      withCredentials: true,
+    },
+  }),
+);
+
 /**
  * =========================================================
  * HEALTH CHECK
  * =========================================================
  */
-
 app.get("/health", (_, res) => {
   res.status(200).json({
     success: true,

@@ -2,13 +2,13 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IMenuItem extends Document {
   cafeId: mongoose.Types.ObjectId;
-  categoryId: mongoose.Types.ObjectId;
+
+  category: string;
 
   name: string;
   description: string;
 
   image: string;
-  images: string[];
 
   price: number;
   discountedPrice: number | null;
@@ -56,10 +56,11 @@ const menuItemSchema = new Schema<IMenuItem>(
       index: true,
     },
 
-    categoryId: {
-      type: Schema.Types.ObjectId,
-      ref: "MenuCategory",
+    category: {
+      type: String,
       required: true,
+      trim: true,
+      maxlength: 50,
       index: true,
     },
 
@@ -80,12 +81,6 @@ const menuItemSchema = new Schema<IMenuItem>(
       type: String,
       default: "",
     },
-
-    images: [
-      {
-        type: String,
-      },
-    ],
 
     price: {
       type: Number,
