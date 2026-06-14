@@ -81,30 +81,3 @@ export const toggleCafeOpen = async (userId: string): Promise<ICafe | null> => {
 export const findPendingCafes = async (): Promise<ICafe[]> => {
   return await Cafe.find({ status: "pending" }).sort({ createdAt: -1 }).lean();
 };
-
-// =========================================
-// UPDATE CAFE STATUS (ADMIN)
-// =========================================
-export const updateCafeStatus = async (
-  cafeId: string,
-  status: "approved" | "rejected",
-  adminNote: string,
-  adminId: string,
-): Promise<ICafe | null> => {
-  const now = new Date();
-  const update: any = {
-    status,
-    adminNote,
-    approvedBy: adminId,
-  };
-
-  if (status === "approved") {
-    update.approvedAt = now;
-    update.rejectedAt = null;
-  } else {
-    update.rejectedAt = now;
-    update.approvedAt = null;
-  }
-
-  return await Cafe.findByIdAndUpdate(cafeId, { $set: update }, { new: true });
-};

@@ -6,7 +6,6 @@ import {
   updateCafeByUserId,
   toggleCafeOpen,
   findPendingCafes,
-  updateCafeStatus,
 } from "./cafe.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 
@@ -99,26 +98,4 @@ export const toggleCafeOpenService = async (userId: string) => {
 // =========================================
 export const getPendingCafesService = async () => {
   return await findPendingCafes();
-};
-
-// =========================================
-// APPROVE / REJECT CAFE
-// =========================================
-export const updateCafeStatusService = async (
-  cafeId: string,
-  status: "approved" | "rejected",
-  adminNote: string = "",
-  adminId: string,
-) => {
-  const cafe = await findCafeById(cafeId);
-
-  if (!cafe) {
-    throw new NotFoundError("Cafe not found");
-  }
-
-  if (cafe.status === status) {
-    throw new BadRequestError(`Cafe is already ${status}`);
-  }
-
-  return await updateCafeStatus(cafeId, status, adminNote, adminId);
 };

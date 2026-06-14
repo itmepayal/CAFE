@@ -7,7 +7,6 @@ import {
   updateMyCafeService,
   toggleCafeOpenService,
   getPendingCafesService,
-  updateCafeStatusService,
 } from "./cafe.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
@@ -298,35 +297,6 @@ export const getPendingCafesController = async (
     res.json({
       success: true,
       data: cafes,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// =========================================
-// APPROVE / REJECT CAFE
-// =========================================
-export const updateCafeStatusController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const adminId = req?.user?.id as string;
-    const cafeId = req.params.id;
-    const { status, adminNote } = req.body;
-    const cafe = await updateCafeStatusService(
-      cafeId,
-      status,
-      adminNote,
-      adminId,
-    );
-
-    res.json({
-      success: true,
-      message: `Cafe ${status} successfully`,
-      data: cafe,
     });
   } catch (error) {
     next(error);
