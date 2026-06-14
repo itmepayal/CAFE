@@ -25,7 +25,7 @@ export const createMenuItemSchema = z.object({
   body: z
     .object({
       cafeId: objectIdSchema,
-      categoryId: objectIdSchema,
+      category: z.string().trim().min(2).max(100),
       name: z.string().trim().min(2).max(100),
       description: z.string().trim().max(500).optional(),
       price: z.coerce.number().min(0),
@@ -57,7 +57,7 @@ export const createMenuItemSchema = z.object({
 export const updateMenuItemSchema = z.object({
   body: z
     .object({
-      categoryId: objectIdSchema.optional(),
+      category: z.string().trim().min(2).max(100).optional(),
       name: z.string().trim().min(2).max(100).optional(),
       description: z.string().trim().max(500).optional(),
       price: z.coerce.number().min(0).optional(),
@@ -132,7 +132,7 @@ export const toggleAvailabilitySchema = z.object({
 export const searchMenuQuerySchema = z.object({
   query: z.object({
     search: z.string().trim().optional(),
-    categoryId: objectIdSchema.optional(),
+    category: z.string().trim().optional(),
     isVeg: z.enum(["true", "false"]).optional(),
     isAvailable: z.enum(["true", "false"]).optional(),
     page: z.coerce.number().min(1).default(1),

@@ -8,6 +8,7 @@ import {
   toggleMenuAvailabilityService,
   updateMenuItemService,
 } from "./menu.service";
+import { uploadToCloudinary } from "../../config/cloudinary.config";
 
 /**
  * =========================================================
@@ -69,7 +70,16 @@ export const createMenuItemController = async (
   next: NextFunction,
 ) => {
   try {
-    const menuItem = await createMenuItemService(req.body.cafeId, req.body);
+    let image = "";
+
+    if (req.file) {
+      image = await uploadToCloudinary(req.file.path, "menu-items");
+    }
+
+    const menuItem = await createMenuItemService(req.body.cafeId, {
+      ...req.body,
+      image,
+    });
 
     res.status(201).json({
       success: true,
@@ -94,7 +104,13 @@ export const updateMenuItemController = async (
   try {
     const { itemId } = req.params;
 
-    const menuItem = await updateMenuItemService(itemId, req.body);
+    let updateData: any = { ...req.body };
+
+    if (req.file) {
+      updateData.image = await uploadToCloudinary(req.file.path, "menu-items");
+    }
+
+    const menuItem = await updateMenuItemService(itemId, updateData);
 
     res.status(200).json({
       success: true,
