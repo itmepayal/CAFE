@@ -287,8 +287,6 @@ const cafeSchema = new Schema<ICafe>(
   },
 );
 
-cafeSchema.index({ userId: 1 });
-cafeSchema.index({ status: 1 });
 cafeSchema.index({ isOpen: 1 });
 cafeSchema.index({ "address.city": 1 });
 cafeSchema.index({ createdAt: -1 });

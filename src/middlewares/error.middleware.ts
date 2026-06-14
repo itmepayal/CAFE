@@ -1,21 +1,38 @@
-import { NextFunction, Request, Response } from "express";
-import { AppError } from "../utils/errors/app.error";
+import { ErrorRequestHandler, NextFunction, Request, Response } from "express";
 
-export const appErrorHandler = (err: AppError, req: Request, res: Response, next: NextFunction) => {
+export const appErrorHandler: ErrorRequestHandler = (
+  error,
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const statusCode =
+    typeof (error as any)?.statusCode === "number"
+      ? (error as any).statusCode
+      : 500;
 
-    console.log(err);
+  res.status(statusCode).json({
+    success: false,
+    message: (error as any)?.message || "Internal Server Error",
+    ...(process.env.NODE_ENV === "development" && {
+      stack: (error as Error).stack,
+    }),
+  });
+};
 
-    res.status(err.statusCode).json({
-        success: false,
-        message: err.message
-    });
-}
-
-export const genericErrorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
-    console.log(err);
-
-    res.status(500).json({
-        success: false,
-        message: "Internal Server Error"
-    });
-}
+export const genericErrorHandler: ErrorRequestHandler = (
+  error,
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  console.error("Unhandled Error:", error);
+  res.status(500).json({
+    success: false,
+    message: "Internal Server Error",
+    ...(process.env.NODE_ENV === "development" && {
+      error: error.message,
+      stack: error.stack,
+    }),
+  });
+};

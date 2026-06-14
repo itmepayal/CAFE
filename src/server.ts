@@ -8,6 +8,7 @@ import {
   appErrorHandler,
   genericErrorHandler,
 } from "./middlewares/error.middleware";
+import cookieParser from "cookie-parser";
 
 /**
  * =========================================================
@@ -22,6 +23,7 @@ const app = express();
  * =========================================================
  */
 app.use(express.json());
+app.use(cookieParser());
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",

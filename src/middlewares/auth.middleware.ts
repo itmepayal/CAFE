@@ -44,11 +44,15 @@ export const authenticate = (
 type Role = "student" | "cafe_owner" | "admin" | "super_admin";
 
 export const authorize = (...allowedRoles: Role[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
     const userRole = req.user?.role as Role | undefined;
 
     if (!userRole) {
       throw new UnauthorizedError("No role found");
+    }
+
+    if (userRole === "super_admin") {
+      return next();
     }
 
     if (!allowedRoles.includes(userRole)) {

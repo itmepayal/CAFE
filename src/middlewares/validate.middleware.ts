@@ -17,9 +17,17 @@ export const validate =
         throw new BadRequestError(JSON.stringify(errors.fieldErrors));
       }
 
-      req.body = result.data.body ?? req.body;
-      req.query = result.data.query ?? req.query;
-      req.params = result.data.params ?? req.params;
+      if (result.data.body) {
+        req.body = result.data.body;
+      }
+
+      if (result.data.query) {
+        Object.assign(req.query, result.data.query);
+      }
+
+      if (result.data.params) {
+        Object.assign(req.params, result.data.params);
+      }
 
       next();
     } catch (err) {

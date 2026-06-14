@@ -20,7 +20,7 @@ export const registerCafeController = async (
   next: NextFunction,
 ) => {
   try {
-    const userId = req?.user?.id as string;
+    const userId = req.user?.id as string;
     const files = req.files as any;
 
     const cafeImage = files?.cafeImage?.[0]
@@ -40,57 +40,67 @@ export const registerCafeController = async (
           )
         : [];
 
-    const bodyDocuments =
-      typeof req.body.documents === "string"
-        ? JSON.parse(req.body.documents)
-        : (req.body.documents ?? {});
+    const address = {
+      street: req.body.street,
+      area: req.body.area,
+      city: req.body.city,
+      state: req.body.state,
+      pincode: req.body.pincode,
+      landmark: req.body.landmark,
+    };
+
+    const location = {
+      latitude: req.body.latitude ? Number(req.body.latitude) : undefined,
+      longitude: req.body.longitude ? Number(req.body.longitude) : undefined,
+    };
 
     const documents = {
-      ...bodyDocuments,
-      ...(files?.aadharPhoto?.[0] && {
-        aadharPhoto: await uploadToCloudinary(
-          files.aadharPhoto[0].path,
-          "cafes/docs",
-        ),
-      }),
-      ...(files?.panPhoto?.[0] && {
-        panPhoto: await uploadToCloudinary(
-          files.panPhoto[0].path,
-          "cafes/docs",
-        ),
-      }),
-      ...(files?.fssaiCertificate?.[0] && {
-        fssaiCertificate: await uploadToCloudinary(
-          files.fssaiCertificate[0].path,
-          "cafes/docs",
-        ),
-      }),
+      aadharNumber: req.body.aadharNumber,
+      panNumber: req.body.panNumber,
+      fssaiNumber: req.body.fssaiNumber,
+      aadharPhoto: files?.aadharPhoto?.[0]
+        ? await uploadToCloudinary(files.aadharPhoto[0].path, "cafes/docs")
+        : "",
+      panPhoto: files?.panPhoto?.[0]
+        ? await uploadToCloudinary(files.panPhoto[0].path, "cafes/docs")
+        : "",
+      fssaiCertificate: files?.fssaiCertificate?.[0]
+        ? await uploadToCloudinary(files.fssaiCertificate[0].path, "cafes/docs")
+        : "",
     };
-
-    const bodyBankDetails =
-      typeof req.body.bankDetails === "string"
-        ? JSON.parse(req.body.bankDetails)
-        : (req.body.bankDetails ?? {});
 
     const bankDetails = {
-      ...bodyBankDetails,
-      ...(files?.bankPassbookPhoto?.[0] && {
-        bankPassbookPhoto: await uploadToCloudinary(
-          files.bankPassbookPhoto[0].path,
-          "cafes/docs",
-        ),
-      }),
+      accountHolderName: req.body.accountHolderName,
+      accountNumber: req.body.accountNumber,
+      ifscCode: req.body.ifscCode,
+      upiId: req.body.upiId,
+      bankPassbookPhoto: files?.bankPassbookPhoto?.[0]
+        ? await uploadToCloudinary(
+            files.bankPassbookPhoto[0].path,
+            "cafes/docs",
+          )
+        : "",
     };
 
-    const cafe = await registerCafeService(userId, {
-      ...req.body,
+    const payload = {
+      cafeName: req.body.cafeName,
+      ownerName: req.body.ownerName,
+      description: req.body.description,
+      mobile: req.body.mobile,
+      email: req.body.email,
+
+      address,
+      location,
+
       cafeImage,
       menuImage,
       gallery,
+
       documents,
       bankDetails,
-    });
+    };
 
+    const cafe = await registerCafeService(userId, payload);
     res.status(201).json({
       success: true,
       message: "Cafe registered successfully",
@@ -181,6 +191,8 @@ export const updateMyCafeController = async (
   next: NextFunction,
 ) => {
   try {
+    console.log(req.body);
+    console.log(req.files);
     const userId = req?.user?.id as string;
     const files = req.files as any;
 

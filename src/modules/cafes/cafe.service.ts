@@ -14,9 +14,9 @@ import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 // REGISTER CAFE
 // =========================================
 export const registerCafeService = async (userId: string, payload: any) => {
-  const existing = await findCafeByUserId(userId);
+  const existingCafe = await findCafeByUserId(userId);
 
-  if (existing) {
+  if (existingCafe) {
     throw new BadRequestError("Cafe already registered for this user");
   }
 
@@ -26,6 +26,7 @@ export const registerCafeService = async (userId: string, payload: any) => {
     status: "pending",
     isBlocked: false,
     isOpen: false,
+    isFeatured: false,
   });
 };
 

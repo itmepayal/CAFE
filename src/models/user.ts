@@ -14,7 +14,7 @@ export interface IUser extends Document {
   provider: "google" | "apple";
   providerId: string;
 
-  role: "student" | "cafe_owner" | "admin" | "super_admin";
+  role: "student" | "cafe_owner" | "super_admin";
 
   isEmailVerified: boolean;
   isBlocked: boolean;
@@ -83,7 +83,7 @@ const userSchema = new Schema<IUser>(
 
     role: {
       type: String,
-      enum: ["student", "cafe_owner", "admin", "super_admin"],
+      enum: ["student", "cafe_owner", "super_admin"],
       default: "student",
       index: true,
     },

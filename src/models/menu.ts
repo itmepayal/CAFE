@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-interface IMenuItem extends Document {
+export interface IMenuItem extends Document {
   cafeId: mongoose.Types.ObjectId;
   categoryId: mongoose.Types.ObjectId;
 
@@ -182,9 +182,6 @@ const menuItemSchema = new Schema<IMenuItem>(
   },
 );
 
-menuItemSchema.index({ cafeId: 1 });
-menuItemSchema.index({ categoryId: 1 });
-menuItemSchema.index({ isAvailable: 1 });
 menuItemSchema.index({ name: "text", description: "text" });
 
 menuItemSchema.virtual("effectivePrice").get(function (this: IMenuItem) {
