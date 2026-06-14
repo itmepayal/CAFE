@@ -70,6 +70,15 @@ type ServerConfig = {
 
   /**
    * =====================================================
+   * CLOUDINARY
+   * =====================================================
+   */
+  CLOUDINARY_NAME: string;
+  CLOUDINARY_API_KEY: string;
+  CLOUDINARY_API_SECRET: string;
+
+  /**
+   * =====================================================
    * APPLE OAUTH
    * =====================================================
    */
@@ -125,6 +134,15 @@ export const serverConfig: ServerConfig = {
    */
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID as string,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET as string,
+
+  /**
+   * =====================================================
+   * CLOUDINARY
+   * =====================================================
+   */
+  CLOUDINARY_NAME: process.env.CLOUDINARY_NAME as string,
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY as string,
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET as string,
 
   /**
    * =====================================================
