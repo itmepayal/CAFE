@@ -1,31 +1,28 @@
-## Steps to setup the starter template
+POST /cart
+GET /cart
+PATCH /cart/:cartItemId
+DELETE /cart/:cartItemId
+DELETE /cart
 
-1. Clone the project
+POST /orders
+GET /orders/my-orders
+GET /orders/:id
+PATCH /orders/:id/cancel
 
-```
-git clone https://github.com/itmepayal/EXPRESS-STARTER-FILE.git <ProjectName>
-```
+GET /owner/orders
+PATCH /owner/orders/:id/accept
+PATCH /owner/orders/:id/reject
+PATCH /owner/orders/:id/preparing
+PATCH /owner/orders/:id/ready
+PATCH /owner/orders/:id/completed 3. Payment Module (3 APIs)
+POST /payments/create-order
+POST /payments/verify
+GET /payments/my-payments
 
-2. Move in to the folder structure
-
-```
-cd <ProjectName>
-```
-
-3. Install npm dependencies
-
-```
-npm i
-```
-
-4. Create a new .env file in the root directory and add the `PORT` env variable
-
-```
-echo PORT=3000 >> .env
-```
-
-5. Start the express server
-
-```
-npm run dev
-```
+4. Menu Categories (4 APIs)
+   POST /categories
+   GET /categories/:cafeId
+   PUT /categories/:id
+   DELETE /categories/:id
+5. Cafe Owner Order Dashboard Summary (Optional but Useful)
+   GET /owner/orders/stats
