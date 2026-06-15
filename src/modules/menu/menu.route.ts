@@ -10,19 +10,13 @@ import {
   getMenuItemController,
 } from "./menu.controller";
 
-const router = Router();
+const menuRouter = Router();
 
 /**
  * @swagger
  * tags:
  *   name: Menu
  *   description: Cafe Menu Management
- */
-
-/**
- * =========================================================
- * STUDENT + CAFE OWNER
- * =========================================================
  */
 
 /**
@@ -43,7 +37,7 @@ const router = Router();
  *       200:
  *         description: Cafe menu fetched successfully
  */
-router.get(
+menuRouter.get(
   "/:cafeId",
   authenticate,
   validate(cafeMenuParamsSchema),
@@ -68,11 +62,11 @@ router.get(
  *       200:
  *         description: Menu item fetched successfully
  */
-router.get(
+menuRouter.get(
   "/item/:itemId",
   authenticate,
   validate(menuItemParamsSchema),
   getMenuItemController,
 );
 
-export default router;
+export default menuRouter;

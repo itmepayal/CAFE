@@ -18,10 +18,6 @@ const complaintRouter = Router();
 
 const complaintUpload = upload.fields([{ name: "attachments", maxCount: 5 }]);
 
-/* =========================================================
-   STUDENT ROUTES
-========================================================= */
-
 /**
  * @swagger
  * /complaints:

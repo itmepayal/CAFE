@@ -20,10 +20,6 @@ const cafeRouter = Router();
  *   description: Cafe Management APIs
  */
 
-/* =========================================================
-   PUBLIC
-========================================================= */
-
 /**
  * @swagger
  * /cafes:
@@ -56,10 +52,6 @@ const cafeRouter = Router();
  *         description: Approved cafes fetched successfully
  */
 cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
-
-/* =========================================================
-   STUDENT
-========================================================= */
 
 /**
  * @swagger
@@ -171,9 +163,6 @@ cafeRouter.post(
   registerCafeController,
 );
 
-/* =========================================================
-   PUBLIC
-========================================================= */
 /**
  * @swagger
  * /cafes/{id}:

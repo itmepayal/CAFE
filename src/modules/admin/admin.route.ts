@@ -7,6 +7,7 @@ import {
   updateComplaintStatusController,
   getComplaintByIdController,
   getAllComplaintsController,
+  getPendingCafesController,
 } from "./admin.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
@@ -26,11 +27,6 @@ const adminRouter = Router();
  *   description: Super Admin Management APIs
  */
 
-/**
- * =========================================================
- * ADMIN ROUTES
- * =========================================================
- */
 /**
  * @swagger
  * /admin/users:
@@ -217,10 +213,6 @@ adminRouter.patch(
   toggleCafeBlockController,
 );
 
-/* =========================================================
-   ADMIN ROUTES
-========================================================= */
-
 /**
  * @swagger
  * /admin/complaints:
@@ -305,7 +297,12 @@ adminRouter.get(
  *       404:
  *         description: Complaint not found
  */
-adminRouter.get("/complaints/:id", authenticate, getComplaintByIdController);
+adminRouter.get(
+  "/complaints/:id",
+  authenticate,
+  authorize("super_admin"),
+  getComplaintByIdController,
+);
 
 /**
  * @swagger
@@ -359,6 +356,30 @@ adminRouter.patch(
   authorize("super_admin"),
   validate(updateComplaintActionSchema),
   updateComplaintStatusController,
+);
+
+/**
+ * @swagger
+ * /admin/cafes/pending:
+ *   get:
+ *     summary: Get all pending cafe requests
+ *     description: Super Admin can view all cafes waiting for approval.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Pending cafes fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+adminRouter.get(
+  "/cafes/pending",
+  authenticate,
+  authorize("super_admin"),
+  getPendingCafesController,
 );
 
 export default adminRouter;

@@ -17,11 +17,6 @@ export const authRouter = Router();
  */
 
 /**
- * =========================================================
- * PUBLIC ROUTES
- * =========================================================
- */
-/**
  * @swagger
  * /auth/google:
  *   post:
@@ -76,11 +71,6 @@ authRouter.post("/google", googleLoginController);
  */
 authRouter.post("/apple", appleLoginController);
 
-/**
- * =========================================================
- * PROTECTED ROUTES
- * =========================================================
- */
 /**
  * @swagger
  * /auth/me:

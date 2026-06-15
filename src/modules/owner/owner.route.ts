@@ -32,9 +32,6 @@ const ownerRouter = Router();
  *   description: Owner Management APIs
  */
 
-/* =========================================================
-   CAFE OWNER
-========================================================= */
 /**
  * @swagger
  * /owners/cafes/my-cafe:

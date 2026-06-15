@@ -44,18 +44,6 @@ export const registerCafeSchema = z.object({
 
 /**
  * =========================================================
- * ADMIN APPROVE / REJECT
- * =========================================================
- */
-export const updateCafeStatusSchema = z.object({
-  body: z.object({
-    status: z.enum(["approved", "rejected"]),
-    adminNote: z.string().max(500).optional(),
-  }),
-});
-
-/**
- * =========================================================
  * GET CAFES QUERY
  * =========================================================
  */

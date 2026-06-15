@@ -17,13 +17,6 @@ const categoryEnum = z.enum([
   "other",
 ]);
 const priorityEnum = z.enum(["low", "medium", "high", "urgent"]);
-const statusEnum = z.enum([
-  "open",
-  "in_review",
-  "resolved",
-  "rejected",
-  "closed",
-]);
 
 /**
  * =========================================================
@@ -49,46 +42,5 @@ export const createComplaintSchema = z.object({
         z.string().transform((val) => JSON.parse(val)),
       ])
       .optional(),
-  }),
-});
-
-/**
- * =========================================================
- * GET ALL COMPLAINTS
- * =========================================================
- */
-export const getAllComplaintsSchema = z.object({
-  query: z.object({
-    status: statusEnum.optional(),
-    category: categoryEnum.optional(),
-    priority: priorityEnum.optional(),
-
-    page: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : 1)),
-
-    limit: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : 10)),
-  }),
-});
-
-/**
- * =========================================================
- * ADMIN ACTION
- * =========================================================
- */
-export const updateComplaintActionSchema = z.object({
-  params: z.object({
-    id: z.string().min(1, "Complaint id is required"),
-  }),
-
-  body: z.object({
-    status: statusEnum,
-    adminNote: z.string().max(2000).optional(),
-    resolution: z.string().max(2000).optional(),
-    assignedTo: z.string().optional(),
   }),
 });
