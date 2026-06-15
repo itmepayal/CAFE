@@ -54,29 +54,6 @@ export const createComplaintSchema = z.object({
 
 /**
  * =========================================================
- * GET MY COMPLAINTS
- * =========================================================
- */
-
-export const getMyComplaintsSchema = z.object({
-  query: z.object({
-    status: statusEnum.optional(),
-    category: categoryEnum.optional(),
-
-    page: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : 1)),
-
-    limit: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : 10)),
-  }),
-});
-
-/**
- * =========================================================
  * GET ALL COMPLAINTS
  * =========================================================
  */

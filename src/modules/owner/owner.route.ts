@@ -363,7 +363,7 @@ ownerRouter.patch(
 
 /**
  * @swagger
- * /complaints/my-complaints:
+ * /admin/complaints/my-complaints:
  *   get:
  *     summary: Get logged-in user's complaints
  *     tags: [SuperAdmin]
