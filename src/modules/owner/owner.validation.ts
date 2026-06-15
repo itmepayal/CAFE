@@ -2,6 +2,30 @@ import { z } from "zod";
 
 /**
  * =========================================================
+ * COMMON ENUMS
+ * =========================================================
+ */
+
+const categoryEnum = z.enum([
+  "food_quality",
+  "wrong_item",
+  "late_order",
+  "refund_issue",
+  "payment_issue",
+  "cafe_behavior",
+  "technical_issue",
+  "other",
+]);
+const statusEnum = z.enum([
+  "open",
+  "in_review",
+  "resolved",
+  "rejected",
+  "closed",
+]);
+
+/**
+ * =========================================================
  * COMMON SCHEMAS
  * =========================================================
  */
@@ -192,5 +216,28 @@ export const getCafeQuerySchema = z.object({
     city: z.string().optional(),
     page: z.coerce.number().min(1).default(1),
     limit: z.coerce.number().min(1).max(100).default(10),
+  }),
+});
+
+/**
+ * =========================================================
+ * GET MY COMPLAINTS
+ * =========================================================
+ */
+
+export const getMyComplaintsSchema = z.object({
+  query: z.object({
+    status: statusEnum.optional(),
+    category: categoryEnum.optional(),
+
+    page: z
+      .string()
+      .optional()
+      .transform((val) => (val ? Number(val) : 1)),
+
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? Number(val) : 10)),
   }),
 });

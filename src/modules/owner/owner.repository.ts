@@ -1,4 +1,5 @@
 import Cafe, { ICafe } from "../../models/cafe";
+import Complaint, { IComplaint } from "../../models/complaint";
 import MenuItem, { IMenuItem } from "../../models/menu";
 import {
   InternalServerError,
@@ -185,4 +186,46 @@ export const toggleMenuAvailabilityRepo = async (
   item.isAvailable = !item.isAvailable;
 
   return saveMenuItemRepo(item);
+};
+
+// =========================================
+// FIND MY COMPLAINTS
+// =========================================
+export const findMyComplaints = async (
+  userId: string,
+  status?: string,
+  category?: string,
+  page: number = 1,
+  limit: number = 10,
+): Promise<{
+  complaints: IComplaint[];
+  total: number;
+  page: number;
+  limit: number;
+}> => {
+  const filter: any = {
+    userId,
+  };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (category) {
+    filter.category = category;
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [complaints, total] = await Promise.all([
+    Complaint.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+
+    Complaint.countDocuments(filter),
+  ]);
+
+  return { complaints, total, page, limit };
 };

@@ -7,6 +7,7 @@ import {
   updateMenuItemController,
   deleteMenuItemController,
   toggleMenuAvailabilityController,
+  getMyComplaintsController,
 } from "./owner.controller";
 
 import { upload } from "../../config/multer.config";
@@ -15,6 +16,7 @@ import { validate } from "../../middlewares/validate.middleware";
 
 import {
   createMenuItemSchema,
+  getMyComplaintsSchema,
   menuItemParamsSchema,
   toggleAvailabilitySchema,
   updateCafeSchema,
@@ -357,6 +359,59 @@ ownerRouter.patch(
   authorize("cafe_owner"),
   validate(toggleAvailabilitySchema),
   toggleMenuAvailabilityController,
+);
+
+/**
+ * @swagger
+ * /complaints/my-complaints:
+ *   get:
+ *     summary: Get logged-in user's complaints
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - open
+ *             - in_review
+ *             - resolved
+ *             - rejected
+ *             - closed
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - food_quality
+ *             - wrong_item
+ *             - late_order
+ *             - refund_issue
+ *             - payment_issue
+ *             - cafe_behavior
+ *             - technical_issue
+ *             - other
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Complaints fetched successfully
+ */
+ownerRouter.get(
+  "/complaints/my-complaints",
+  authenticate,
+  validate(getMyComplaintsSchema),
+  getMyComplaintsController,
 );
 
 export default ownerRouter;

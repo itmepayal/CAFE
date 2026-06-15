@@ -8,6 +8,7 @@ import {
   updateMenuItemRepo,
   deleteMenuItemRepo,
   saveMenuItemRepo,
+  findMyComplaints,
 } from "./owner.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 import { findCafeRepo } from "../menu/menu.repository";
@@ -120,4 +121,17 @@ export const toggleMenuAvailabilityService = async (itemId: string) => {
   item.isAvailable = !item.isAvailable;
 
   return saveMenuItemRepo(item);
+};
+
+// =========================================
+// GET MY COMPLAINTS SERVICE
+// =========================================
+export const getMyComplaintsService = async (
+  userId: string,
+  status?: string,
+  category?: string,
+  page?: number,
+  limit?: number,
+) => {
+  return await findMyComplaints(userId, status, category, page, limit);
 };
