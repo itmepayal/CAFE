@@ -4,11 +4,18 @@ import {
   approveCafeController,
   rejectCafeController,
   toggleCafeBlockController,
-  getPendingCafesController,
+  updateComplaintStatusController,
+  getComplaintByIdController,
+  getAllComplaintsController,
 } from "./admin.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
 import { authorize } from "../../middlewares/auth.middleware";
+import { validate } from "../../middlewares/validate.middleware";
+import {
+  getAllComplaintsSchema,
+  updateComplaintActionSchema,
+} from "./admin.validation";
 
 const adminRouter = Router();
 
@@ -209,27 +216,149 @@ adminRouter.patch(
   authorize("super_admin"),
   toggleCafeBlockController,
 );
+
 /* =========================================================
-   SUPER ADMIN
+   ADMIN ROUTES
 ========================================================= */
 
 /**
  * @swagger
- * /owners/pending:
+ * /admin/complaints:
  *   get:
- *     summary: Get all pending cafe requests
- *     tags: [Owner]
+ *     summary: Get all complaints
+ *     description: Super Admin can view all complaints.
+ *     tags: [SuperAdmin]
  *     security:
  *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - open
+ *             - in_review
+ *             - resolved
+ *             - rejected
+ *             - closed
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - food_quality
+ *             - wrong_item
+ *             - late_order
+ *             - refund_issue
+ *             - payment_issue
+ *             - cafe_behavior
+ *             - technical_issue
+ *             - other
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - low
+ *             - medium
+ *             - high
+ *             - urgent
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
  *     responses:
  *       200:
- *         description: Pending cafes fetched successfully
+ *         description: Complaints fetched successfully
  */
 adminRouter.get(
-  "/pending",
+  "/complaints",
   authenticate,
   authorize("super_admin"),
-  getPendingCafesController,
+  validate(getAllComplaintsSchema),
+  getAllComplaintsController,
+);
+
+/**
+ * @swagger
+ * /admin/complaints/{id}:
+ *   get:
+ *     summary: Get complaint details by ID
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Complaint details fetched successfully
+ *       404:
+ *         description: Complaint not found
+ */
+adminRouter.get("/complaints/:id", authenticate, getComplaintByIdController);
+
+/**
+ * @swagger
+ * /admin/complaints/{id}/action:
+ *   patch:
+ *     summary: Update complaint status
+ *     description: Super Admin can review, resolve, reject, close or reopen complaints.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum:
+ *                   - open
+ *                   - in_review
+ *                   - resolved
+ *                   - rejected
+ *                   - closed
+ *               adminNote:
+ *                 type: string
+ *                 maxLength: 2000
+ *               resolution:
+ *                 type: string
+ *                 maxLength: 2000
+ *               assignedTo:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Complaint updated successfully
+ *       404:
+ *         description: Complaint not found
+ */
+adminRouter.patch(
+  "/complaints/:id/action",
+  authenticate,
+  authorize("super_admin"),
+  validate(updateComplaintActionSchema),
+  updateComplaintStatusController,
 );
 
 export default adminRouter;
