@@ -3,9 +3,6 @@ import {
   findApprovedCafes,
   findCafeById,
   findCafeByUserId,
-  updateCafeByUserId,
-  toggleCafeOpen,
-  findPendingCafes,
 } from "./cafe.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 
@@ -52,50 +49,4 @@ export const getCafeByIdService = async (id: string) => {
   }
 
   return cafe;
-};
-
-// =========================================
-// GET MY CAFE (OWNER)
-// =========================================
-export const getMyCafeService = async (userId: string) => {
-  const cafe = await findCafeByUserId(userId);
-
-  if (!cafe) {
-    throw new NotFoundError("Cafe not found for this user");
-  }
-
-  return cafe;
-};
-
-// =========================================
-// UPDATE MY CAFE
-// =========================================
-export const updateMyCafeService = async (userId: string, payload: any) => {
-  const updated = await updateCafeByUserId(userId, payload);
-
-  if (!updated) {
-    throw new NotFoundError("Cafe not found or update failed");
-  }
-
-  return updated;
-};
-
-// =========================================
-// TOGGLE OPEN / CLOSE CAFE
-// =========================================
-export const toggleCafeOpenService = async (userId: string) => {
-  const cafe = await toggleCafeOpen(userId);
-
-  if (!cafe) {
-    throw new NotFoundError("Cafe not found");
-  }
-
-  return cafe;
-};
-
-// =========================================
-// GET PENDING CAFES
-// =========================================
-export const getPendingCafesService = async () => {
-  return await findPendingCafes();
 };

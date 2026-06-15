@@ -54,30 +54,3 @@ export const findCafeByUserId = async (
 ): Promise<ICafe | null> => {
   return await Cafe.findOne({ userId });
 };
-
-// =========================================
-// UPDATE CAFE BY USER ID
-// =========================================
-export const updateCafeByUserId = async (
-  userId: string,
-  data: Partial<ICafe>,
-): Promise<ICafe | null> => {
-  return await Cafe.findOneAndUpdate({ userId }, { $set: data }, { new: true });
-};
-
-// =========================================
-// TOGGLE OPEN / CLOSE
-// =========================================
-export const toggleCafeOpen = async (userId: string): Promise<ICafe | null> => {
-  const cafe = await Cafe.findOne({ userId });
-  if (!cafe) return null;
-  cafe.isOpen = !cafe.isOpen;
-  return await cafe.save();
-};
-
-// =========================================
-// FIND PENDING CAFES
-// =========================================
-export const findPendingCafes = async (): Promise<ICafe[]> => {
-  return await Cafe.find({ status: "pending" }).sort({ createdAt: -1 }).lean();
-};

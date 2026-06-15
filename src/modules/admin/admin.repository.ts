@@ -59,3 +59,10 @@ export const saveUserRepo = async (user: IUser): Promise<IUser> => {
     throw new InternalServerError("Failed to save user");
   });
 };
+
+// =========================================
+// FIND PENDING CAFES
+// =========================================
+export const findPendingCafes = async (): Promise<ICafe[]> => {
+  return await Cafe.find({ status: "pending" }).sort({ createdAt: -1 }).lean();
+};

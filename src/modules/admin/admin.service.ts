@@ -2,6 +2,7 @@ import User from "../../models/user";
 
 import {
   findCafeByIdRepo,
+  findPendingCafes,
   getAllUsersRepo,
   saveCafeRepo,
   saveUserRepo,
@@ -65,4 +66,11 @@ export const toggleCafeBlockService = async (cafeId: string) => {
   const cafe = await findCafeByIdRepo(cafeId);
   cafe.isBlocked = !cafe.isBlocked;
   return saveCafeRepo(cafe);
+};
+
+// =========================================
+// GET PENDING CAFES
+// =========================================
+export const getPendingCafesService = async () => {
+  return await findPendingCafes();
 };

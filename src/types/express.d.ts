@@ -1,5 +1,3 @@
-import { IUser } from "../models/user";
-
 declare global {
   namespace Express {
     interface UserPayload {
@@ -8,6 +6,7 @@ declare global {
       email?: string;
       provider?: string;
     }
+
     interface Request {
       user?: UserPayload;
     }

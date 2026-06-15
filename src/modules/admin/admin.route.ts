@@ -4,6 +4,7 @@ import {
   approveCafeController,
   rejectCafeController,
   toggleCafeBlockController,
+  getPendingCafesController,
 } from "./admin.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
@@ -207,6 +208,28 @@ adminRouter.patch(
   authenticate,
   authorize("super_admin"),
   toggleCafeBlockController,
+);
+/* =========================================================
+   SUPER ADMIN
+========================================================= */
+
+/**
+ * @swagger
+ * /owners/pending:
+ *   get:
+ *     summary: Get all pending cafe requests
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Pending cafes fetched successfully
+ */
+adminRouter.get(
+  "/pending",
+  authenticate,
+  authorize("super_admin"),
+  getPendingCafesController,
 );
 
 export default adminRouter;

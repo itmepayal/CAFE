@@ -5,6 +5,7 @@ import {
   approveCafeService,
   rejectCafeService,
   toggleCafeBlockService,
+  getPendingCafesService,
 } from "./admin.service";
 
 /**
@@ -94,6 +95,26 @@ export const toggleCafeBlockController = async (
         ? "Cafe blocked successfully"
         : "Cafe unblocked successfully",
       cafe,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// GET PENDING CAFES
+// =========================================
+export const getPendingCafesController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const cafes = await getPendingCafesService();
+
+    res.json({
+      success: true,
+      data: cafes,
     });
   } catch (error) {
     next(error);
