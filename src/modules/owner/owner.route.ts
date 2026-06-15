@@ -363,10 +363,10 @@ ownerRouter.patch(
 
 /**
  * @swagger
- * /admin/complaints/my-complaints:
+ * /owners/complaints/my-complaints:
  *   get:
  *     summary: Get logged-in user's complaints
- *     tags: [SuperAdmin]
+ *     tags: [Owner]
  *     security:
  *       - cookieAuth: []
  *     parameters:
