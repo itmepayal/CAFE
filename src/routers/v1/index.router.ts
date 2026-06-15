@@ -6,6 +6,7 @@ import adminRouter from "../../modules/admin/admin.route";
 import cafeRouter from "../../modules/cafes/cafe.route";
 import ownerRouter from "../../modules/owner/owner.route";
 import cartRouter from "../../modules/carts/cart.route";
+import orderRouter from "../../modules/order/order.route";
 
 const v1Router = express.Router();
 
@@ -15,6 +16,7 @@ v1Router.use("/owners", ownerRouter);
 v1Router.use("/menus", menuRouter);
 v1Router.use("/cafes", cafeRouter);
 v1Router.use("/carts", cartRouter);
+v1Router.use("/orders", orderRouter);
 v1Router.use("/complaints", complaintRouter);
 
 export default v1Router;
