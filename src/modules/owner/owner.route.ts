@@ -8,6 +8,10 @@ import {
   deleteMenuItemController,
   toggleMenuAvailabilityController,
   getMyComplaintsController,
+  getMyMenuItemsController,
+  getMyCafeOrdersController,
+  getCafeOrderDetailsController,
+  updateOrderStatusController,
 } from "./owner.controller";
 
 import { upload } from "../../config/multer.config";
@@ -171,7 +175,117 @@ ownerRouter.patch(
 
 /**
  * @swagger
- * /owners/menus:
+ * /owners/cafes/my-cafe/menus:
+ *   get:
+ *     summary: Get all menu items of the logged-in cafe owner
+ *     description: Returns all menu items belonging to the authenticated cafe owner's cafe.
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Menu items fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         example: 685fcbbfd5d1c29f5d6a1234
+ *                       cafeId:
+ *                         type: string
+ *                         example: 685fcbbfd5d1c29f5d6a5678
+ *                       category:
+ *                         type: string
+ *                         example: Snacks
+ *                       name:
+ *                         type: string
+ *                         example: Veg Burger
+ *                       description:
+ *                         type: string
+ *                         example: Freshly prepared veg burger with cheese.
+ *                       image:
+ *                         type: string
+ *                         example: https://res.cloudinary.com/demo/image/upload/burger.jpg
+ *                       price:
+ *                         type: number
+ *                         example: 120
+ *                       discountedPrice:
+ *                         type: number
+ *                         example: 99
+ *                       preparationTime:
+ *                         type: number
+ *                         example: 15
+ *                       isVeg:
+ *                         type: boolean
+ *                         example: true
+ *                       isAvailable:
+ *                         type: boolean
+ *                         example: true
+ *                       isPopular:
+ *                         type: boolean
+ *                         example: false
+ *                       isRecommended:
+ *                         type: boolean
+ *                         example: true
+ *                       stockQuantity:
+ *                         type: number
+ *                         example: 50
+ *                       tags:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                         example:
+ *                           - burger
+ *                           - fastfood
+ *                       displayOrder:
+ *                         type: number
+ *                         example: 1
+ *                       nutritionalInfo:
+ *                         type: object
+ *                         properties:
+ *                           calories:
+ *                             type: number
+ *                             example: 320
+ *                           protein:
+ *                             type: number
+ *                             example: 12
+ *                           carbs:
+ *                             type: number
+ *                             example: 28
+ *                           fat:
+ *                             type: number
+ *                             example: 15
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                       updatedAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Cafe not found
+ */
+ownerRouter.get(
+  "/cafes/my-cafe/menus",
+  authenticate,
+  authorize("cafe_owner"),
+  getMyMenuItemsController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/menus:
  *   post:
  *     summary: Create menu item
  *     tags: [Owner]
@@ -255,7 +369,7 @@ ownerRouter.patch(
  *         description: Menu item created successfully
  */
 ownerRouter.post(
-  "/menus",
+  "/cafes/my-cafe/menus",
   authenticate,
   authorize("cafe_owner"),
   upload.single("image"),
@@ -265,7 +379,7 @@ ownerRouter.post(
 
 /**
  * @swagger
- * /owners/menus/{itemId}:
+ * /owners/cafes/my-cafe/menus/{itemId}:
  *   put:
  *     summary: Update menu item
  *     tags: [Owner]
@@ -288,7 +402,7 @@ ownerRouter.post(
  *         description: Menu item updated successfully
  */
 ownerRouter.put(
-  "/menus/:itemId",
+  "/cafes/my-cafe/menus/:itemId",
   authenticate,
   authorize("cafe_owner"),
   upload.single("image"),
@@ -299,7 +413,7 @@ ownerRouter.put(
 
 /**
  * @swagger
- * /owners/menus/{itemId}:
+ * /owners/cafes/my-cafe/menus/{itemId}:
  *   delete:
  *     summary: Delete menu item
  *     tags: [Owner]
@@ -316,7 +430,7 @@ ownerRouter.put(
  *         description: Menu item deleted successfully
  */
 ownerRouter.delete(
-  "/menus/:itemId",
+  "/cafes/my-cafe/menus/:itemId",
   authenticate,
   authorize("cafe_owner"),
   validate(menuItemParamsSchema),
@@ -325,7 +439,7 @@ ownerRouter.delete(
 
 /**
  * @swagger
- * /owners/menus/{itemId}/availability:
+ * /owners/cafes/my-cafe/menus/{itemId}/availability/toggle:
  *   patch:
  *     summary: Toggle menu item availability
  *     tags: [Owner]
@@ -351,7 +465,7 @@ ownerRouter.delete(
  *         description: Availability updated successfully
  */
 ownerRouter.patch(
-  "/menus/:itemId/availability",
+  "/cafes/my-cafe/menus/:itemId/availability/toggle",
   authenticate,
   authorize("cafe_owner"),
   validate(toggleAvailabilitySchema),
@@ -360,7 +474,121 @@ ownerRouter.patch(
 
 /**
  * @swagger
- * /owners/complaints/my-complaints:
+ * /owners/cafes/my-cafe/orders:
+ *   get:
+ *     summary: Get all orders for the logged-in cafe owner
+ *     description: Returns all orders belonging to the authenticated owner's cafe. Optionally filter by order status.
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - pending
+ *             - accepted
+ *             - rejected
+ *             - preparing
+ *             - ready
+ *             - completed
+ *             - cancelled
+ *     responses:
+ *       200:
+ *         description: Orders fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Cafe not found
+ */
+ownerRouter.get(
+  "/cafes/my-cafe/orders",
+  authenticate,
+  authorize("cafe_owner"),
+  getMyCafeOrdersController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/orders/{orderId}:
+ *   get:
+ *     summary: Get order details
+ *     description: Get a single order belonging to the logged-in owner's cafe.
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Order fetched successfully
+ *       404:
+ *         description: Order not found
+ */
+ownerRouter.get(
+  "/cafes/my-cafe/orders/:orderId",
+  authenticate,
+  authorize("cafe_owner"),
+  getCafeOrderDetailsController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/orders/{orderId}/status:
+ *   patch:
+ *     summary: Update order status
+ *     description: Update the status of an order belonging to the logged-in owner's cafe.
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum:
+ *                   - accepted
+ *                   - rejected
+ *                   - preparing
+ *                   - ready
+ *                   - completed
+ *                   - cancelled
+ *     responses:
+ *       200:
+ *         description: Order status updated successfully
+ *       400:
+ *         description: Invalid status update
+ *       404:
+ *         description: Order not found
+ */
+ownerRouter.patch(
+  "/cafes/my-cafe/orders/:orderId/status",
+  authenticate,
+  authorize("cafe_owner"),
+  updateOrderStatusController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/complaints:
  *   get:
  *     summary: Get logged-in user's complaints
  *     tags: [Owner]
@@ -405,7 +633,7 @@ ownerRouter.patch(
  *         description: Complaints fetched successfully
  */
 ownerRouter.get(
-  "/complaints/my-complaints",
+  "/cafes/my-cafe/complaints",
   authenticate,
   validate(getMyComplaintsSchema),
   getMyComplaintsController,

@@ -32,10 +32,21 @@ const adminRouter = Router();
  * /admin/users:
  *   get:
  *     summary: Get all users
- *     description: Retrieve all registered users including students, cafe owners, admins and super admins.
+ *     description: Retrieve all registered users. Optionally filter users by role.
  *     tags: [SuperAdmin]
  *     security:
  *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: role
+ *         required: false
+ *         description: Filter users by role
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - student
+ *             - cafe_owner
+ *             - super_admin
  *     responses:
  *       200:
  *         description: Users fetched successfully
@@ -47,7 +58,7 @@ const adminRouter = Router();
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 users:
+ *                 data:
  *                   type: array
  *                   items:
  *                     type: object

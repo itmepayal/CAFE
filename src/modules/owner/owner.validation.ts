@@ -105,7 +105,6 @@ export const updateCafeSchema = z.object({
 export const createMenuItemSchema = z.object({
   body: z
     .object({
-      cafeId: objectIdSchema,
       category: z.string().trim().min(2).max(100),
       name: z.string().trim().min(2).max(100),
       description: z.string().trim().max(500).optional(),

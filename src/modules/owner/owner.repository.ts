@@ -1,10 +1,12 @@
 import Cafe, { ICafe } from "../../models/cafe";
 import Complaint, { IComplaint } from "../../models/complaint";
 import MenuItem, { IMenuItem } from "../../models/menu";
+import Order from "../../models/order";
 import {
   InternalServerError,
   NotFoundError,
 } from "../../utils/errors/app.error";
+import { FindOrdersOptions } from "./owner.type";
 
 // =========================================
 // FIND APPROVED CAFES
@@ -111,6 +113,18 @@ export const saveMenuItemRepo = async (item: IMenuItem): Promise<IMenuItem> => {
   return item.save().catch(() => {
     throw new InternalServerError("Failed to save menu item");
   });
+};
+
+/**
+ * =========================================================
+ * GET ALL MENU ITEM
+ * =========================================================
+ */
+export const findMenuItemsByCafeId = async (cafeId: string) => {
+  return await MenuItem.find({
+    cafeId,
+    isDeleted: false,
+  }).sort({ createdAt: -1 });
 };
 
 /**
@@ -228,4 +242,135 @@ export const findMyComplaints = async (
   ]);
 
   return { complaints, total, page, limit };
+};
+
+// =========================================
+// FIND ORDER BY CAFE ID
+// =========================================
+export const findOrdersByCafeId = async (
+  cafeId: string,
+  options: FindOrdersOptions,
+) => {
+  const {
+    status,
+    paymentStatus,
+    search,
+    from,
+    to,
+    today,
+    page = 1,
+    limit = 20,
+    sort = "createdAt",
+    order = "desc",
+  } = options;
+
+  const filter: any = {
+    cafe: cafeId,
+  };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (paymentStatus) {
+    filter["payment.status"] = paymentStatus;
+  }
+
+  if (search) {
+    filter.$or = [
+      {
+        orderNumber: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+      {
+        _id: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+    ];
+  }
+
+  if (today) {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    filter.createdAt = {
+      $gte: start,
+      $lte: end,
+    };
+  } else if (from || to) {
+    filter.createdAt = {};
+
+    if (from) {
+      filter.createdAt.$gte = new Date(from);
+    }
+
+    if (to) {
+      const end = new Date(to);
+      end.setHours(23, 59, 59, 999);
+
+      filter.createdAt.$lte = end;
+    }
+  }
+
+  const total = await Order.countDocuments(filter);
+
+  const orders = await Order.find(filter)
+    .populate("user", "name email phone")
+    .sort({
+      [sort]: order === "asc" ? 1 : -1,
+    })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .lean();
+
+  return {
+    success: true,
+    total,
+    page,
+    limit,
+    pages: Math.ceil(total / limit),
+    data: orders,
+  };
+};
+
+// =========================================
+// FIND ORDER BY CAFE ID AND ORDER ID
+// =========================================
+export const findOrderByCafeIdAndOrderId = async (
+  cafeId: string,
+  orderId: string,
+) => {
+  return Order.findOne({
+    _id: orderId,
+    cafeId,
+  }).populate("studentId", "name email avatar");
+};
+
+// =========================================
+// UPDATE ORDER STATUS
+// =========================================
+export const updateOrderStatusRepo = async (
+  orderId: string,
+  cafeId: string,
+  status: string,
+) => {
+  return Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      cafeId,
+    },
+    {
+      status,
+    },
+    {
+      new: true,
+    },
+  );
 };

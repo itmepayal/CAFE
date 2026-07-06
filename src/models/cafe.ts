@@ -67,7 +67,7 @@ export interface ICafe extends Document {
     totalRevenue: number;
   };
 
-  readonly isApproved: boolean;
+  isApproved: boolean;
 
   createdAt: Date;
   updatedAt: Date;

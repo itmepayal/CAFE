@@ -9,6 +9,10 @@ import {
   deleteMenuItemService,
   toggleMenuAvailabilityService,
   getMyComplaintsService,
+  getMyMenuItemsService,
+  getMyCafeOrdersService,
+  getCafeOrderDetailsService,
+  updateOrderStatusService,
 } from "./owner.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
@@ -176,13 +180,15 @@ export const createMenuItemController = async (
   next: NextFunction,
 ) => {
   try {
+    const userId = req.user!.id;
+
     let image = "";
 
     if (req.file) {
       image = await uploadToCloudinary(req.file.path, "menu-items");
     }
 
-    const menuItem = await createMenuItemService(req.body.cafeId, {
+    const menuItem = await createMenuItemService(userId, {
       ...req.body,
       image,
     });
@@ -190,7 +196,31 @@ export const createMenuItemController = async (
     res.status(201).json({
       success: true,
       message: "Menu item created successfully",
-      menuItem,
+      data: menuItem,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * GET ALL MENU ITEM
+ * =========================================================
+ */
+export const getMyMenuItemsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+
+    const menuItems = await getMyMenuItemsService(userId);
+
+    res.status(200).json({
+      success: true,
+      data: menuItems,
     });
   } catch (error) {
     next(error);
@@ -208,6 +238,7 @@ export const updateMenuItemController = async (
   next: NextFunction,
 ) => {
   try {
+    const userId = req.user!.id;
     const { itemId } = req.params;
 
     let updateData: any = { ...req.body };
@@ -216,12 +247,12 @@ export const updateMenuItemController = async (
       updateData.image = await uploadToCloudinary(req.file.path, "menu-items");
     }
 
-    const menuItem = await updateMenuItemService(itemId, updateData);
+    const menuItem = await updateMenuItemService(userId, itemId, updateData);
 
     res.status(200).json({
       success: true,
       message: "Menu item updated successfully",
-      menuItem,
+      data: menuItem,
     });
   } catch (error) {
     next(error);
@@ -239,9 +270,10 @@ export const deleteMenuItemController = async (
   next: NextFunction,
 ) => {
   try {
+    const userId = req.user!.id;
     const { itemId } = req.params;
 
-    await deleteMenuItemService(itemId);
+    await deleteMenuItemService(userId, itemId);
 
     res.status(200).json({
       success: true,
@@ -263,9 +295,10 @@ export const toggleMenuAvailabilityController = async (
   next: NextFunction,
 ) => {
   try {
+    const userId = req.user!.id;
     const { itemId } = req.params;
 
-    const menuItem = await toggleMenuAvailabilityService(itemId);
+    const menuItem = await toggleMenuAvailabilityService(userId, itemId);
 
     res.status(200).json({
       success: true,
@@ -273,6 +306,94 @@ export const toggleMenuAvailabilityController = async (
         ? "Menu item is now available"
         : "Menu item is now unavailable",
       menuItem,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// GET MY CAFE ORDERS
+// =========================================
+export const getMyCafeOrdersController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+
+    const options = {
+      status: req.query.status as string | undefined,
+      paymentStatus: req.query.paymentStatus as string | undefined,
+      search: req.query.search as string | undefined,
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      page: req.query.page ? Number(req.query.page) : 1,
+      limit: req.query.limit ? Number(req.query.limit) : 10,
+    };
+
+    const result = await getMyCafeOrdersService(userId, options);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      pages: Math.ceil(result.total / result.limit),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * GET MY CAFE ORDER DETAILS
+ * =========================================================
+ */
+export const getCafeOrderDetailsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId } = req.params;
+
+    const order = await getCafeOrderDetailsService(userId, orderId);
+
+    res.status(200).json({
+      success: true,
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * UPDATE ORDER STATUS
+ * =========================================================
+ */
+export const updateOrderStatusController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    const order = await updateOrderStatusService(userId, orderId, status);
+
+    res.status(200).json({
+      success: true,
+      message: "Order status updated successfully",
+      data: order,
     });
   } catch (error) {
     next(error);
@@ -306,12 +427,10 @@ export const getMyComplaintsController = async (
     res.json({
       success: true,
       data: result.complaints,
-      pagination: {
-        total: result.total,
-        page: result.page,
-        limit: result.limit,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      pages: Math.ceil(result.total / result.limit),
     });
   } catch (error) {
     next(error);

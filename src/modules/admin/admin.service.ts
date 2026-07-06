@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../../models/user";
 import {
   findAllComplaints,
@@ -9,15 +10,15 @@ import {
   saveUserRepo,
   updateComplaintStatus,
 } from "./admin.repository";
-import { NotFoundError } from "../../utils/errors/app.error";
+import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 
 /**
  * =========================================================
  * GET ALL USERS
  * =========================================================
  */
-export const getAllUsersService = async () => {
-  return getAllUsersRepo();
+export const getAllUsersService = async (role?: string) => {
+  return getAllUsersRepo(role);
 };
 
 /**
@@ -25,22 +26,41 @@ export const getAllUsersService = async () => {
  * APPROVE CAFE
  * =========================================================
  */
-export const approveCafeService = async (cafeId: string) => {
+export const approveCafeService = async (
+  cafeId: string,
+  adminId: mongoose.Types.ObjectId,
+) => {
   const cafe = await findCafeByIdRepo(cafeId);
 
-  const owner = await User.findById(cafe.ownerName);
+  if (cafe.isBlocked) {
+    throw new BadRequestError(
+      "Blocked cafes cannot be approved. Please unblock the cafe first.",
+    );
+  }
+
+  if (cafe.status === "approved") {
+    throw new BadRequestError("Cafe is already approved.");
+  }
+
+  if (cafe.status === "rejected") {
+    throw new BadRequestError("Rejected cafes cannot be approved.");
+  }
+
+  const owner = await User.findById(cafe.userId);
 
   if (!owner) {
     throw new NotFoundError("Cafe owner not found");
   }
 
   cafe.status = "approved";
+  cafe.approvedBy = adminId;
+  cafe.approvedAt = new Date();
+  cafe.adminNote = "";
 
   owner.role = "cafe_owner";
   owner.ownedCafe = cafe._id;
 
-  await saveCafeRepo(cafe);
-  await saveUserRepo(owner);
+  await Promise.all([saveCafeRepo(cafe), saveUserRepo(owner)]);
 
   return cafe;
 };
@@ -53,10 +73,22 @@ export const approveCafeService = async (cafeId: string) => {
 export const rejectCafeService = async (cafeId: string, adminNote: string) => {
   const cafe = await findCafeByIdRepo(cafeId);
 
-  cafe.status = "rejected";
-  cafe.adminNote = adminNote;
+  if (cafe.status === "approved") {
+    throw new BadRequestError(
+      "Approved cafes cannot be rejected. Block or suspend the cafe instead.",
+    );
+  }
 
-  return saveCafeRepo(cafe);
+  if (cafe.status === "rejected") {
+    throw new BadRequestError("Cafe has already been rejected.");
+  }
+
+  cafe.status = "rejected";
+  cafe.isApproved = false;
+  cafe.adminNote = adminNote;
+  cafe.rejectedAt = new Date();
+
+  return await saveCafeRepo(cafe);
 };
 
 /**
@@ -66,8 +98,13 @@ export const rejectCafeService = async (cafeId: string, adminNote: string) => {
  */
 export const toggleCafeBlockService = async (cafeId: string) => {
   const cafe = await findCafeByIdRepo(cafeId);
+  if (cafe.status !== "approved") {
+    throw new BadRequestError(
+      "Only approved cafes can be blocked or unblocked.",
+    );
+  }
   cafe.isBlocked = !cafe.isBlocked;
-  return saveCafeRepo(cafe);
+  return await saveCafeRepo(cafe);
 };
 
 // =========================================

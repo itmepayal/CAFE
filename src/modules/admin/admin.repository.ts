@@ -12,8 +12,14 @@ import Complaint, { IComplaint } from "../../models/complaint";
  * GET ALL USERS
  * =========================================================
  */
-export const getAllUsersRepo = async () => {
-  return User.find()
+export const getAllUsersRepo = async (role?: string) => {
+  const filter: Record<string, any> = {};
+
+  if (role) {
+    filter.role = role;
+  }
+
+  return User.find(filter)
     .select("-deviceTokens")
     .populate("ownedCafe")
     .sort({ createdAt: -1 })
