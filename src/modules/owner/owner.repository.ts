@@ -54,7 +54,7 @@ export const findCafeByUserId = async (
 // =========================================
 export const updateCafeByUserId = async (
   userId: string,
-  data: Partial<ICafe>,
+  data: Record<string, any>,
 ): Promise<ICafe | null> => {
   return await Cafe.findOneAndUpdate({ userId }, { $set: data }, { new: true });
 };
@@ -245,7 +245,7 @@ export const findMyComplaints = async (
 };
 
 // =========================================
-// FIND ORDER BY CAFE ID
+// FIND ORDERS BY CAFE ID
 // =========================================
 export const findOrdersByCafeId = async (
   cafeId: string,
@@ -265,7 +265,7 @@ export const findOrdersByCafeId = async (
   } = options;
 
   const filter: any = {
-    cafe: cafeId,
+    cafeId,
   };
 
   if (status) {
@@ -277,20 +277,7 @@ export const findOrdersByCafeId = async (
   }
 
   if (search) {
-    filter.$or = [
-      {
-        orderNumber: {
-          $regex: search,
-          $options: "i",
-        },
-      },
-      {
-        _id: {
-          $regex: search,
-          $options: "i",
-        },
-      },
-    ];
+    filter.orderNumber = { $regex: search, $options: "i" };
   }
 
   if (today) {
@@ -322,7 +309,7 @@ export const findOrdersByCafeId = async (
   const total = await Order.countDocuments(filter);
 
   const orders = await Order.find(filter)
-    .populate("user", "name email phone")
+    .populate("studentId", "name email phone")
     .sort({
       [sort]: order === "asc" ? 1 : -1,
     })
@@ -373,4 +360,14 @@ export const updateOrderStatusRepo = async (
       new: true,
     },
   );
+};
+
+// =========================================
+// EXPIRED PENDING ORDERS
+// =========================================
+export const findExpiredPendingOrders = async (cutoffDate: Date) => {
+  return Order.find({
+    status: "pending",
+    createdAt: { $lte: cutoffDate },
+  });
 };

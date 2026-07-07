@@ -12,6 +12,7 @@ import {
   genericErrorHandler,
 } from "./middlewares/error.middleware";
 import { initializeSocket } from "./socket/socket";
+import { startOrderAutoCancelJob } from "./jobs/order.job";
 
 /**
  * =========================================================
@@ -130,6 +131,7 @@ const startServer = async (): Promise<void> => {
     });
 
     initializeSocket(server);
+    startOrderAutoCancelJob();
 
     server.on("error", (error) => {
       logger.error("Server startup error", {

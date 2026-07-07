@@ -13,6 +13,7 @@ import {
   getMyCafeOrdersService,
   getCafeOrderDetailsService,
   updateOrderStatusService,
+  autoCancelStaleOrdersService,
 } from "./owner.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
@@ -76,8 +77,6 @@ export const updateMyCafeController = async (
   next: NextFunction,
 ) => {
   try {
-    console.log(req.body);
-    console.log(req.files);
     const userId = req?.user?.id as string;
     const files = req.files as any;
 
@@ -305,7 +304,7 @@ export const toggleMenuAvailabilityController = async (
       message: menuItem.isAvailable
         ? "Menu item is now available"
         : "Menu item is now unavailable",
-      menuItem,
+      data: menuItem,
     });
   } catch (error) {
     next(error);
@@ -337,11 +336,11 @@ export const getMyCafeOrdersController = async (
 
     res.status(200).json({
       success: true,
-      data: result,
+      data: result.data,
       total: result.total,
       page: result.page,
       limit: result.limit,
-      pages: Math.ceil(result.total / result.limit),
+      pages: result.pages,
     });
   } catch (error) {
     next(error);
@@ -394,6 +393,26 @@ export const updateOrderStatusController = async (
       success: true,
       message: "Order status updated successfully",
       data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// AUTO TRIGGER ORDER
+// =========================================
+export const triggerAutoCancelController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    await autoCancelStaleOrdersService();
+
+    res.status(200).json({
+      success: true,
+      message: "Stale order auto-cancel job triggered successfully",
     });
   } catch (error) {
     next(error);

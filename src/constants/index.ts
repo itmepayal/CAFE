@@ -25,3 +25,17 @@ export const STATUS_MESSAGES: Record<OrderStatus, string> = {
 };
 
 export const CANCELLABLE_STATUSES: OrderStatus[] = ["pending", "accepted"];
+
+export const ALLOWED_UPDATE_FIELDS = [
+  "name",
+  "description",
+  "price",
+  "discountedPrice",
+  "category",
+  "image",
+  "isAvailable",
+  "preparationTime",
+  "ingredients",
+] as const;
+
+export const ORDER_AUTO_CANCEL_MINUTES = 15;

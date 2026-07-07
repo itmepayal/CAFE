@@ -13,11 +13,13 @@ import {
   findOrdersByCafeId,
   findOrderByCafeIdAndOrderId,
   updateOrderStatusRepo,
+  findExpiredPendingOrders,
 } from "./owner.repository";
 import {
   emitStatusUpdate,
   emitOrderReady,
   emitOrderCancelled,
+  emitAdminOrderEvent,
 } from "../../socket/order";
 import {
   BadRequestError,
@@ -27,7 +29,14 @@ import {
 import { IOrder } from "../../models/order";
 import { GetCafeOrdersOptions } from "./owner.type";
 import { generatePickupCode, pick } from "../../utils/pick/pick";
-import { ORDER_STATUS_TRANSITIONS } from "../../constants";
+import {
+  ALLOWED_UPDATE_FIELDS,
+  ORDER_AUTO_CANCEL_MINUTES,
+  ORDER_STATUS_TRANSITIONS,
+  STATUS_MESSAGES,
+} from "../../constants";
+import { logger } from "../../config/logger.config";
+import { cancelOrderRepo } from "../order/order.repository"; // single source of truth
 
 // =========================================
 // GET ALL APPROVED CAFES
@@ -42,7 +51,7 @@ export const getApprovedCafesService = async (
 };
 
 // =========================================
-// GET MY CAFE (OWNER)
+// GET MY CAFE
 // =========================================
 export const getMyCafeService = async (userId: string) => {
   const cafe = await findCafeByUserId(userId);
@@ -122,19 +131,6 @@ export const getMyMenuItemsService = async (userId: string) => {
  * UPDATE MENU ITEM
  * =========================================================
  */
-
-const ALLOWED_UPDATE_FIELDS = [
-  "name",
-  "description",
-  "price",
-  "discountedPrice",
-  "category",
-  "image",
-  "isAvailable",
-  "preparationTime",
-  "ingredients",
-] as const;
-
 export const updateMenuItemService = async (
   userId: string,
   itemId: string,
@@ -373,6 +369,64 @@ export const updateOrderStatusService = async (
   }
 
   return updatedOrder;
+};
+
+/**
+ * =========================================================
+ * AUTO ORDER CANCEL
+ * =========================================================
+ */
+export const autoCancelStaleOrdersService = async (): Promise<void> => {
+  const cutoffDate = new Date(
+    Date.now() - ORDER_AUTO_CANCEL_MINUTES * 60 * 1000,
+  );
+
+  const staleOrders = await findExpiredPendingOrders(cutoffDate);
+
+  if (staleOrders.length === 0) {
+    return;
+  }
+
+  logger.info(`Auto-cancelling ${staleOrders.length} stale pending order(s)`);
+
+  for (const order of staleOrders) {
+    try {
+      const reason = "Cafe did not respond in time";
+
+      await cancelOrderRepo(order._id.toString(), "super_admin", reason);
+
+      const studentId = order.studentId.toString();
+
+      emitOrderCancelled(studentId, {
+        orderId: order._id.toString(),
+        reason,
+        cancelledBy: "admin",
+      });
+
+      emitStatusUpdate(studentId, {
+        orderId: order._id.toString(),
+        status: "cancelled",
+        message: STATUS_MESSAGES["cancelled"],
+      });
+
+      emitAdminOrderEvent("admin:order:auto_cancelled", {
+        orderId: order._id.toString(),
+        cafeId: order.cafeId.toString(),
+        studentId,
+        reason,
+      });
+
+      logger.info("Order auto-cancelled due to timeout", {
+        orderId: order._id,
+        cafeId: order.cafeId,
+      });
+    } catch (error) {
+      logger.error("Failed to auto-cancel order", {
+        orderId: order._id,
+        error,
+      });
+    }
+  }
 };
 
 // =========================================
