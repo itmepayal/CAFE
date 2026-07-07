@@ -39,6 +39,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:19006",
   "https://cafe-6icu.onrender.com",
+  "https://cafe-myg2.onrender.com",
   process.env.CLIENT_URL,
 ].filter(Boolean) as string[];
 
