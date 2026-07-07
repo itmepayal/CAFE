@@ -11,6 +11,7 @@ import {
   appErrorHandler,
   genericErrorHandler,
 } from "./middlewares/error.middleware";
+import { initializeSocket } from "./socket/socket";
 
 /**
  * =========================================================
@@ -127,6 +128,8 @@ const startServer = async (): Promise<void> => {
       );
       logger.info("Press Ctrl+C to stop the server.");
     });
+
+    initializeSocket(server);
 
     server.on("error", (error) => {
       logger.error("Server startup error", {

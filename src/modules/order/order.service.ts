@@ -70,7 +70,7 @@ export const createOrderService = async (
     throw new NotFoundError("Cafe not found");
   }
 
-  if (!cafe.isApproved) {
+  if (cafe.status != "approved") {
     throw new BadRequestError("This cafe is not approved.");
   }
 
@@ -209,8 +209,16 @@ export const cancelOrderService = async (
 
   const order = await findOrderByIdRepo(orderId);
 
-  if (order.studentId.toString() !== studentId) {
+  if (!order) {
+    throw new NotFoundError("Order not found.");
+  }
+
+  if (order.studentId._id.toString() !== studentId) {
     throw new ForbiddenError("You are only allowed to cancel your own orders.");
+  }
+
+  if (order.status === "cancelled") {
+    throw new BadRequestError("This order has already been cancelled.");
   }
 
   if (!CANCELLABLE_STATUSES.includes(order.status as OrderStatus)) {
@@ -219,41 +227,47 @@ export const cancelOrderService = async (
     );
   }
 
-  if (!reason || reason.trim().length === 0) {
+  const cancellationReason = reason.trim();
+
+  if (!cancellationReason) {
     throw new BadRequestError("A cancellation reason is required.");
   }
 
-  if (reason.trim().length > 500) {
+  if (cancellationReason.length > 500) {
     throw new BadRequestError(
       "Cancellation reason cannot exceed 500 characters.",
     );
   }
 
-  const cancelledOrder = await cancelOrderRepo(orderId, "student", reason);
+  const cancelledOrder = await cancelOrderRepo(
+    orderId,
+    "student",
+    cancellationReason,
+  );
 
   logger.info("Order cancelled", {
     orderId,
     cancelledBy: "student",
-    reason,
+    reason: cancellationReason,
     previousStatus: order.status,
   });
 
   emitOrderCancelled(studentId, {
     orderId,
-    reason,
+    reason: cancellationReason,
     cancelledBy: "student",
   });
 
   emitStatusUpdate(studentId, {
     orderId,
     status: "cancelled",
-    message: STATUS_MESSAGES["cancelled"],
+    message: STATUS_MESSAGES.cancelled,
   });
 
   emitAdminOrderEvent("admin:order:cancelled", {
     orderId,
     cancelledBy: "student",
-    reason,
+    reason: cancellationReason,
     cafeId: order.cafeId.toString(),
     studentId,
   });
@@ -277,7 +291,7 @@ export const rateOrderService = async (
     throw new NotFoundError("Order not found.");
   }
 
-  if (order.studentId.toString() !== studentId) {
+  if (order.studentId._id.toString() !== studentId) {
     throw new ForbiddenError("You can only rate your own orders.");
   }
 

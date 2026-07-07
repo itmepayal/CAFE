@@ -69,6 +69,8 @@ export const cancelOrderController = async (
   try {
     const sID = req?.user?.id as string;
 
+    console.log(req.user);
+
     const order = await cancelOrderService({
       orderId: req.params.orderId,
       studentId: sID,

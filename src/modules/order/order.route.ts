@@ -113,7 +113,7 @@ orderRouter.post(
 
 /**
  * @swagger
- * /orders/{orderId}/cancel:
+ * /orders/{orderId}/cancellation:
  *   patch:
  *     summary: Cancel order
  *     tags: [Orders]
@@ -140,7 +140,7 @@ orderRouter.post(
  *         description: Order cancelled successfully
  */
 orderRouter.patch(
-  "/:orderId/cancel",
+  "/:orderId/cancellation",
   authenticate,
   authorize("student"),
   cancelOrderController,
