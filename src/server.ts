@@ -36,8 +36,9 @@ app.use(cookieParser());
  */
 const allowedOrigins = [
   "http://localhost:3000",
-  "http://localhost:5173",
+  "http://localhost:8081",
   "http://localhost:19006",
+  "http://localhost:8000",
   "https://cafe-6icu.onrender.com",
   "https://cafe-myg2.onrender.com",
   process.env.CLIENT_URL,
