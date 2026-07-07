@@ -14,8 +14,10 @@ import {
   createGoogleUser,
   createAppleUser,
   updateUserSession,
+  updateProfileRepo,
 } from "./auth.repository";
 import { logger } from "../../config/logger.config";
+import { UpdateProfilePayload } from "./auth.type";
 
 /**
  * =========================================================
@@ -158,4 +160,36 @@ export const getCurrentUser = async (userId: string): Promise<IUser> => {
   logger.info(`Fetching current user: ${userId}`);
 
   return await findUserById(userId);
+};
+
+/**
+ * =========================================================
+ * CHANGE CURRENT USER
+ * =========================================================
+ */
+export const changeProfile = async (
+  userId: string,
+  payload: UpdateProfilePayload,
+): Promise<IUser> => {
+  logger.info(`Updating profile: ${userId}`);
+
+  const updateData: UpdateProfilePayload = {};
+
+  if (payload.name !== undefined) {
+    updateData.name = payload.name.trim();
+  }
+
+  if (payload.phone !== undefined) {
+    updateData.phone = payload.phone.trim();
+  }
+
+  if (payload.university !== undefined) {
+    updateData.university = payload.university.trim();
+  }
+
+  if (payload.profileImage !== undefined) {
+    updateData.profileImage = payload.profileImage;
+  }
+
+  return await updateProfileRepo(userId, updateData);
 };

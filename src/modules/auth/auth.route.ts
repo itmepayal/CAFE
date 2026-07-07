@@ -4,8 +4,10 @@ import {
   appleLoginController,
   getCurrentUserController,
   logoutController,
+  changeProfileController,
 } from "./auth.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
+import { upload } from "../../config/multer.config";
 
 export const authRouter = Router();
 
@@ -29,20 +31,19 @@ export const authRouter = Router();
  *           schema:
  *             type: object
  *             required:
- *               - idToken
+ *               - token
  *             properties:
- *               idToken:
+ *               token:
  *                 type: string
  *                 example: eyJhbGciOiJSUzI1NiIs...
  *     responses:
  *       200:
  *         description: Login successful and cookies set
- *       400:
- *         description: Invalid request
  *       401:
  *         description: Invalid Google token
  */
 authRouter.post("/google", googleLoginController);
+
 /**
  * @swagger
  * /auth/apple:
@@ -64,8 +65,6 @@ authRouter.post("/google", googleLoginController);
  *     responses:
  *       200:
  *         description: Login successful and cookies set
- *       400:
- *         description: Invalid request
  *       401:
  *         description: Invalid Apple token
  */
@@ -86,6 +85,49 @@ authRouter.post("/apple", appleLoginController);
  *         description: Unauthorized
  */
 authRouter.get("/me", authenticate, getCurrentUserController);
+
+/**
+ * @swagger
+ * /auth/profile:
+ *   patch:
+ *     summary: Update logged-in user's profile
+ *     tags: [Auth]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Payal Patel
+ *               phone:
+ *                 type: string
+ *                 example: "9876543210"
+ *               university:
+ *                 type: string
+ *                 example: Nirma University
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ */
+authRouter.patch(
+  "/profile",
+  authenticate,
+  upload.single("profileImage"),
+  changeProfileController,
+);
+
 /**
  * @swagger
  * /auth/logout:

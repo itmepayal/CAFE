@@ -1,7 +1,13 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utils/handlers/async.handler";
-import { googleLogin, appleLogin, getCurrentUser } from "./auth.service";
+import {
+  googleLogin,
+  appleLogin,
+  getCurrentUser,
+  changeProfile,
+} from "./auth.service";
 import { setAuthCookies } from "../../utils/cookies/cookie.utils";
+import { uploadToCloudinary } from "../../config/cloudinary.config";
 
 /**
  * =========================================================
@@ -93,6 +99,34 @@ export const logoutController = asyncHandler(
     res.status(200).json({
       success: true,
       message: "Logout successful",
+    });
+  },
+);
+
+/**
+ * =========================================================
+ * CHANGE PROFILE
+ * =========================================================
+ */
+export const changeProfileController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+
+    let profileImage: string | undefined;
+
+    if (req.file) {
+      profileImage = await uploadToCloudinary(req.file.path, "users");
+    }
+
+    const user = await changeProfile(userId, {
+      ...req.body,
+      profileImage,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: user,
     });
   },
 );

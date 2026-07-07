@@ -134,3 +134,28 @@ export const updateUserSession = async (user: IUser): Promise<IUser> => {
     throw new InternalServerError("Failed to update user session");
   });
 };
+
+/**
+ * =========================================================
+ * UPDATE PROFILE
+ * =========================================================
+ */
+export const updateProfileRepo = async (
+  userId: string,
+  payload: Partial<IUser>,
+): Promise<IUser> => {
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: payload },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+
+  if (!user) {
+    throw new NotFoundError("User not found");
+  }
+
+  return user;
+};
