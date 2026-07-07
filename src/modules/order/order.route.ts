@@ -2,10 +2,7 @@ import { Router } from "express";
 
 import {
   createOrderController,
-  getOrderByIdController,
   getMyOrdersController,
-  getCafeOrdersController,
-  updateOrderStatusController,
   cancelOrderController,
   rateOrderController,
 } from "./order.controller";
@@ -115,115 +112,6 @@ orderRouter.post(
 );
 
 /**
- * =========================================================
- * CAFE OWNER ROUTES
- * =========================================================
- */
-
-/**
- * @swagger
- * /orders/cafe:
- *   get:
- *     summary: Get cafe orders
- *     tags: [Orders]
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum:
- *             - pending
- *             - accepted
- *             - rejected
- *             - preparing
- *             - ready
- *             - completed
- *             - cancelled
- *     responses:
- *       200:
- *         description: Cafe orders fetched successfully
- */
-orderRouter.get(
-  "/cafe",
-  authenticate,
-  authorize("cafe_owner"),
-  getCafeOrdersController,
-);
-
-/**
- * @swagger
- * /orders/{orderId}/status:
- *   patch:
- *     summary: Update order status
- *     tags: [Orders]
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: orderId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - status
- *             properties:
- *               status:
- *                 type: string
- *                 enum:
- *                   - accepted
- *                   - rejected
- *                   - preparing
- *                   - ready
- *                   - completed
- *                   - cancelled
- *               estimatedReadyTime:
- *                 type: string
- *                 format: date-time
- *     responses:
- *       200:
- *         description: Order status updated successfully
- */
-orderRouter.patch(
-  "/:orderId/status",
-  authenticate,
-  authorize("cafe_owner"),
-  updateOrderStatusController,
-);
-
-/**
- * @swagger
- * /orders/{orderId}:
- *   get:
- *     summary: Get order by ID
- *     tags: [Orders]
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: orderId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Order fetched successfully
- */
-orderRouter.get(
-  "/:orderId",
-  authenticate,
-  authorize("super_admin"),
-  getOrderByIdController,
-);
-
-/**
  * @swagger
  * /orders/{orderId}/cancel:
  *   patch:
@@ -254,7 +142,7 @@ orderRouter.get(
 orderRouter.patch(
   "/:orderId/cancel",
   authenticate,
-  authorize("super_admin"),
+  authorize("student"),
   cancelOrderController,
 );
 

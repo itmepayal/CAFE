@@ -2,88 +2,32 @@ import {
   createOrderRepo,
   findOrderByIdRepo,
   findOrdersByStudentRepo,
-  findOrdersByCafeRepo,
   updateOrderStatusRepo,
   cancelOrderRepo,
 } from "./order.repository";
-
 import {
   emitNewOrderToCafe,
   emitStatusUpdate,
-  emitOrderReady,
   emitOrderCancelled,
   emitAdminOrderEvent,
   OrderStatus,
 } from "../../socket/order";
-
 import { IOrder, IOrderItem } from "../../models/order";
 import logger from "../../config/logger.config";
-import { BadRequestError, ForbiddenError } from "../../utils/errors/app.error";
-
-/**
- * =========================================================
- * CONSTANTS
- * =========================================================
- */
-const STATUS_MESSAGES: Record<OrderStatus, string> = {
-  pending: "Order place ho gaya, cafe ka wait karo ⏳",
-  accepted: "Cafe ne tumhara order accept kar liya! 🎉",
-  rejected: "Cafe ne order reject kar diya.",
-  preparing: "Tumhara khana ban raha hai... 👨‍🍳",
-  ready: "Order ready hai! Pickup karo 🔔",
-  completed: "Order complete! Enjoy your meal 😊",
-  cancelled: "Tumhara order cancel ho gaya.",
-};
-
-const TIMESTAMP_FIELDS: Partial<Record<OrderStatus, keyof IOrder>> = {
-  accepted: "acceptedAt",
-  preparing: "preparingAt",
-  ready: "readyAt",
-  completed: "completedAt",
-  cancelled: "cancelledAt",
-};
-
-const VALID_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
-  pending: ["accepted", "rejected"],
-  accepted: ["preparing"],
-  preparing: ["ready"],
-  ready: ["completed"],
-};
-
-const CANCELLABLE_STATUSES: OrderStatus[] = ["pending", "accepted"];
-
-/**
- * =========================================================
- * HELPERS
- * =========================================================
- */
-const calculateSubtotal = (items: IOrderItem[]): number =>
-  items.reduce((sum, item) => sum + item.quantity * item.itemPrice, 0);
-
-const validateTransition = (current: OrderStatus, next: OrderStatus): void => {
-  const allowed = VALID_TRANSITIONS[current] ?? [];
-  if (!allowed.includes(next)) {
-    throw new BadRequestError(
-      `Order status '${current}' se '${next}' mein change nahi ho sakta. Allowed: [${allowed.join(", ")}]`,
-    );
-  }
-};
-
-/**
- * =========================================================
- * CREATE ORDER
- * =========================================================
- */
-
-export interface CreateOrderInput {
-  studentId: string;
-  cafeId: string;
-  items: IOrderItem[];
-  paymentMethod: IOrder["paymentMethod"];
-  notes?: string;
-  taxRate?: number;
-  discountAmount?: number;
-}
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} from "../../utils/errors/app.error";
+import { CANCELLABLE_STATUSES, STATUS_MESSAGES } from "../../constants";
+import {
+  CancelOrderInput,
+  CreateOrderInput,
+  PAYMENT_METHODS,
+  RateOrderInput,
+} from "./order.type";
+import { findCafeById } from "../cafes/cafe.repository";
+import { findMenuItemByIdRepo } from "../menu/menu.repository";
 
 export const createOrderService = async (
   input: CreateOrderInput,
@@ -99,19 +43,104 @@ export const createOrderService = async (
   } = input;
 
   if (!items || items.length === 0) {
-    throw new BadRequestError("Order mein kam se kam ek item hona chahiye");
+    throw new BadRequestError("Order must contain at least one item.");
   }
 
-  const subtotal = calculateSubtotal(items);
+  if (
+    !PAYMENT_METHODS.includes(paymentMethod as (typeof PAYMENT_METHODS)[number])
+  ) {
+    throw new BadRequestError(
+      `Invalid payment method. Allowed: ${PAYMENT_METHODS.join(", ")}`,
+    );
+  }
+
+  for (const item of items) {
+    if (!item.menuItemId) {
+      throw new BadRequestError("Menu item ID is required.");
+    }
+
+    if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+      throw new BadRequestError("Item quantity must be greater than zero.");
+    }
+  }
+
+  const cafe = await findCafeById(cafeId);
+
+  if (!cafe) {
+    throw new NotFoundError("Cafe not found");
+  }
+
+  if (!cafe.isApproved) {
+    throw new BadRequestError("This cafe is not approved.");
+  }
+
+  if (!cafe.isOpen) {
+    throw new BadRequestError("This cafe is currently closed.");
+  }
+
+  const menuItems = await Promise.all(
+    items.map((item) => findMenuItemByIdRepo(item.menuItemId)),
+  );
+
+  const enrichedItems: IOrderItem[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const requestedItem = items[i];
+    const menuItem = menuItems[i];
+
+    if (!menuItem) {
+      throw new NotFoundError(
+        `Menu item ${requestedItem.menuItemId} not found`,
+      );
+    }
+
+    if (menuItem.cafeId.toString() !== cafeId) {
+      throw new BadRequestError(
+        `The menu item "${menuItem.name}" does not belong to the selected cafe. An order can only contain items from a single cafe.`,
+      );
+    }
+
+    if (!menuItem.isAvailable) {
+      throw new BadRequestError(`"${menuItem.name}" abhi available nahi hai`);
+    }
+
+    const effectivePrice =
+      menuItem.discountedPrice && menuItem.discountedPrice > 0
+        ? menuItem.discountedPrice
+        : menuItem.price;
+
+    const itemSubtotal = parseFloat(
+      (requestedItem.quantity * effectivePrice).toFixed(2),
+    );
+
+    enrichedItems.push({
+      menuItemId: menuItem._id,
+      itemName: menuItem.name,
+      itemImage: menuItem.image ?? "",
+      itemPrice: effectivePrice,
+      quantity: requestedItem.quantity,
+      subtotal: itemSubtotal,
+      specialInstructions: requestedItem.specialInstructions ?? "",
+    } as IOrderItem);
+  }
+
+  const subtotal = parseFloat(
+    enrichedItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2),
+  );
   const taxAmount = parseFloat((subtotal * taxRate).toFixed(2));
   const totalAmount = parseFloat(
     (subtotal + taxAmount - discountAmount).toFixed(2),
   );
 
-  const enrichedItems: IOrderItem[] = items.map((item) => ({
-    ...item,
-    subtotal: parseFloat((item.quantity * item.itemPrice).toFixed(2)),
-  }));
+  if (discountAmount > subtotal) {
+    throw new BadRequestError(
+      "The discount amount cannot exceed the order subtotal.",
+    );
+  }
+
+  if (totalAmount < 0) {
+    throw new BadRequestError("The total order amount cannot be negative.");
+  }
 
   const order = await createOrderRepo({
     studentId: studentId as any,
@@ -121,7 +150,7 @@ export const createOrderService = async (
     taxAmount,
     discountAmount,
     totalAmount,
-    paymentMethod,
+    paymentMethod: paymentMethod as IOrder["paymentMethod"],
     notes,
     paymentStatus: "pending",
     status: "pending",
@@ -159,42 +188,9 @@ export const createOrderService = async (
 
 /**
  * =========================================================
- * GET ORDER BY ID
- * =========================================================
- */
-
-export const getOrderByIdService = async (
-  orderId: string,
-  requesterId: string,
-  requesterRole: "student" | "cafe_owner" | "super_admin",
-): Promise<IOrder> => {
-  const order = await findOrderByIdRepo(orderId);
-
-  if (
-    requesterRole === "student" &&
-    order.studentId.toString() !== requesterId
-  ) {
-    throw new ForbiddenError(
-      "Tumhare paas yeh order dekhne ki permission nahi hai",
-    );
-  }
-
-  if (
-    requesterRole === "cafe_owner" &&
-    order.cafeId.toString() !== requesterId
-  ) {
-    throw new ForbiddenError("Yeh order tumhare cafe ka nahi hai");
-  }
-
-  return order;
-};
-
-/**
- * =========================================================
  * GET ORDERS BY STUDENT
  * =========================================================
  */
-
 export const getStudentOrdersService = async (
   studentId: string,
 ): Promise<IOrder[]> => {
@@ -203,159 +199,49 @@ export const getStudentOrdersService = async (
 
 /**
  * =========================================================
- * GET ORDERS BY CAFE
- * =========================================================
- */
-
-export const getCafeOrdersService = async (
-  cafeId: string,
-  status?: OrderStatus,
-): Promise<IOrder[]> => {
-  return await findOrdersByCafeRepo(cafeId, status);
-};
-
-/**
- * =========================================================
- * UPDATE ORDER STATUS  (Cafe action)
- * =========================================================
- */
-
-export interface UpdateOrderStatusInput {
-  orderId: string;
-  newStatus: OrderStatus;
-  cafeId: string;
-  estimatedReadyTime?: Date;
-}
-
-export const updateOrderStatusService = async (
-  input: UpdateOrderStatusInput,
-): Promise<IOrder> => {
-  const { orderId, newStatus, cafeId, estimatedReadyTime } = input;
-
-  const order = await findOrderByIdRepo(orderId);
-
-  if (order.cafeId.toString() !== cafeId) {
-    throw new ForbiddenError(
-      "Tumhare paas yeh order update karne ki permission nahi hai",
-    );
-  }
-
-  if (newStatus === "accepted" && order.paymentStatus !== "paid") {
-    throw new BadRequestError(
-      "Payment complete nahi hai, order accept nahi ho sakta",
-    );
-  }
-
-  validateTransition(order.status as OrderStatus, newStatus);
-
-  const extraFields: Partial<IOrder> = {};
-  const tsField = TIMESTAMP_FIELDS[newStatus];
-  if (tsField) {
-    (extraFields as any)[tsField] = new Date();
-  }
-  if (estimatedReadyTime) {
-    extraFields.estimatedReadyTime = estimatedReadyTime;
-  }
-
-  const updatedOrder = await updateOrderStatusRepo(
-    orderId,
-    newStatus,
-    extraFields,
-  );
-
-  logger.info("Order status updated", {
-    orderId,
-    oldStatus: order.status,
-    newStatus,
-    cafeId,
-  });
-
-  const studentId = order.studentId.toString();
-
-  emitStatusUpdate(studentId, {
-    orderId,
-    status: newStatus,
-    estimatedReadyTime: updatedOrder.estimatedReadyTime,
-    message: STATUS_MESSAGES[newStatus],
-  });
-
-  if (newStatus === "ready") {
-    emitOrderReady(studentId, {
-      orderId,
-      pickupCode: order.pickupCode,
-    });
-  }
-
-  if (["rejected", "completed"].includes(newStatus)) {
-    emitAdminOrderEvent("admin:order:statusChanged", {
-      orderId,
-      newStatus,
-      cafeId,
-      studentId,
-    });
-  }
-
-  return updatedOrder;
-};
-
-/**
- * =========================================================
  * CANCEL ORDER
  * =========================================================
  */
-
-export interface CancelOrderInput {
-  orderId: string;
-  cancelledBy: "student" | "cafe_owner" | "super_admin";
-  reason: string;
-  requesterId: string;
-}
-
 export const cancelOrderService = async (
   input: CancelOrderInput,
 ): Promise<IOrder> => {
-  const { orderId, cancelledBy, reason, requesterId } = input;
+  const { orderId, studentId, reason } = input;
 
   const order = await findOrderByIdRepo(orderId);
 
-  if (cancelledBy === "student" && order.studentId.toString() !== requesterId) {
-    throw new ForbiddenError("Tum sirf apna order cancel kar sakte ho");
-  }
-
-  if (cancelledBy === "cafe_owner" && order.cafeId.toString() !== requesterId) {
-    throw new ForbiddenError("Tum sirf apne cafe ka order cancel kar sakte ho");
+  if (order.studentId.toString() !== studentId) {
+    throw new ForbiddenError("You are only allowed to cancel your own orders.");
   }
 
   if (!CANCELLABLE_STATUSES.includes(order.status as OrderStatus)) {
     throw new BadRequestError(
-      `'${order.status}' status ka order cancel nahi ho sakta. Sirf ${CANCELLABLE_STATUSES.join(", ")} cancel ho sakte hain`,
+      `Orders with status '${order.status}' cannot be cancelled. Orders can only be cancelled when their status is: ${CANCELLABLE_STATUSES.join(", ")}.`,
     );
   }
 
   if (!reason || reason.trim().length === 0) {
-    throw new BadRequestError("Cancellation reason dena zaroori hai");
+    throw new BadRequestError("A cancellation reason is required.");
   }
 
-  const cancelledOrder = await cancelOrderRepo(orderId, cancelledBy, reason);
+  if (reason.trim().length > 500) {
+    throw new BadRequestError(
+      "Cancellation reason cannot exceed 500 characters.",
+    );
+  }
+
+  const cancelledOrder = await cancelOrderRepo(orderId, "student", reason);
 
   logger.info("Order cancelled", {
     orderId,
-    cancelledBy,
+    cancelledBy: "student",
     reason,
     previousStatus: order.status,
   });
 
-  const studentId = order.studentId.toString();
-
   emitOrderCancelled(studentId, {
     orderId,
     reason,
-    cancelledBy:
-      cancelledBy === "cafe_owner"
-        ? "cafe"
-        : cancelledBy === "super_admin"
-          ? "admin"
-          : "student",
+    cancelledBy: "student",
   });
 
   emitStatusUpdate(studentId, {
@@ -366,7 +252,7 @@ export const cancelOrderService = async (
 
   emitAdminOrderEvent("admin:order:cancelled", {
     orderId,
-    cancelledBy,
+    cancelledBy: "student",
     reason,
     cafeId: order.cafeId.toString(),
     studentId,
@@ -380,14 +266,6 @@ export const cancelOrderService = async (
  * RATE ORDER
  * =========================================================
  */
-
-export interface RateOrderInput {
-  orderId: string;
-  studentId: string;
-  stars: number;
-  review?: string;
-}
-
 export const rateOrderService = async (
   input: RateOrderInput,
 ): Promise<IOrder> => {
@@ -395,20 +273,28 @@ export const rateOrderService = async (
 
   const order = await findOrderByIdRepo(orderId);
 
+  if (!order) {
+    throw new NotFoundError("Order not found.");
+  }
+
   if (order.studentId.toString() !== studentId) {
-    throw new ForbiddenError("Tum sirf apna order rate kar sakte ho");
+    throw new ForbiddenError("You can only rate your own orders.");
   }
 
   if (order.status !== "completed") {
-    throw new BadRequestError("Sirf completed orders ko rate kar sakte ho");
+    throw new BadRequestError("Only completed orders can be rated.");
   }
 
   if (order.rating?.stars) {
-    throw new BadRequestError("Yeh order already rate ho chuka hai");
+    throw new BadRequestError("This order has already been rated.");
   }
 
-  if (stars < 1 || stars > 5) {
-    throw new BadRequestError("Stars 1 se 5 ke beech hona chahiye");
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
+    throw new BadRequestError("Rating must be an integer between 1 and 5.");
+  }
+
+  if (review.trim().length > 500) {
+    throw new BadRequestError("Review cannot exceed 500 characters.");
   }
 
   const updatedOrder = await updateOrderStatusRepo(
