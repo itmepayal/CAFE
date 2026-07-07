@@ -44,7 +44,7 @@ export interface IOrder extends Document {
 
   notes: string;
 
-  cancelledBy: "student" | "cafe" | "admin" | null;
+  cancelledBy: "student" | "cafe_owner" | "super_admin" | null;
 
   cancellationReason: string;
 
@@ -223,7 +223,7 @@ const orderSchema = new Schema<IOrder>(
 
     cancelledBy: {
       type: String,
-      enum: ["student", "cafe", "admin"],
+      enum: ["student", "cafe_owner", "super_admin"],
       default: null,
     },
 

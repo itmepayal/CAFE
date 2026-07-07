@@ -11,6 +11,7 @@ import {
   getAllComplaintsService,
 } from "./admin.service";
 import mongoose from "mongoose";
+import { cancelSpecificStaleOrderService } from "../owner/owner.service";
 
 /**
  * =========================================================
@@ -209,6 +210,26 @@ export const updateComplaintStatusController = async (
       success: true,
       message: "Complaint updated successfully",
       data: complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// TRIGGER SPECIFIC ORDER CANCEL
+// =========================================
+export const triggerSpecificOrderCancelController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { orderId } = req.params;
+    await cancelSpecificStaleOrderService(orderId);
+    res.status(200).json({
+      success: true,
+      message: `Order ${orderId} cancelled successfully`,
     });
   } catch (error) {
     next(error);

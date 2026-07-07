@@ -38,4 +38,4 @@ export const ALLOWED_UPDATE_FIELDS = [
   "ingredients",
 ] as const;
 
-export const ORDER_AUTO_CANCEL_MINUTES = 15;
+export const ORDER_AUTO_CANCEL_MINUTES = 10 / 60;

@@ -12,7 +12,6 @@ import {
   getMyCafeOrdersController,
   getCafeOrderDetailsController,
   updateOrderStatusController,
-  triggerAutoCancelController,
 } from "./owner.controller";
 
 import { upload } from "../../config/multer.config";
@@ -618,46 +617,6 @@ ownerRouter.patch(
   authenticate,
   authorize("cafe_owner"),
   updateOrderStatusController,
-);
-
-/**
- * @swagger
- * /owners/orders/auto-cancel/trigger:
- *   post:
- *     summary: Manually trigger the stale-order auto-cancel job
- *     description: >
- *       Finds all orders still in "pending" status past the auto-cancel
- *       timeout window (ORDER_AUTO_CANCEL_MINUTES) and cancels them.
- *       This runs automatically on a schedule via a cron job; this endpoint
- *       exists only for manual/admin-triggered runs (e.g. for testing or
- *       emergency cleanup). Restricted to super_admin.
- *     tags: [Owner]
- *     security:
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: Auto-cancel job triggered successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Stale order auto-cancel job triggered successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden — only super_admin can trigger this job
- */
-ownerRouter.post(
-  "/orders/auto-cancel/trigger",
-  authenticate,
-  authorize("super_admin"),
-  triggerAutoCancelController,
 );
 
 /**

@@ -13,7 +13,6 @@ import {
   getMyCafeOrdersService,
   getCafeOrderDetailsService,
   updateOrderStatusService,
-  autoCancelStaleOrdersService,
 } from "./owner.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
@@ -393,26 +392,6 @@ export const updateOrderStatusController = async (
       success: true,
       message: "Order status updated successfully",
       data: order,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// =========================================
-// AUTO TRIGGER ORDER
-// =========================================
-export const triggerAutoCancelController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    await autoCancelStaleOrdersService();
-
-    res.status(200).json({
-      success: true,
-      message: "Stale order auto-cancel job triggered successfully",
     });
   } catch (error) {
     next(error);

@@ -26,7 +26,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../utils/errors/app.error";
-import { IOrder } from "../../models/order";
+import Order, { IOrder } from "../../models/order";
 import { GetCafeOrdersOptions } from "./owner.type";
 import { generatePickupCode, pick } from "../../utils/pick/pick";
 import {
@@ -36,7 +36,7 @@ import {
   STATUS_MESSAGES,
 } from "../../constants";
 import { logger } from "../../config/logger.config";
-import { cancelOrderRepo } from "../order/order.repository"; // single source of truth
+import { cancelOrderRepo } from "../order/order.repository";
 
 // =========================================
 // GET ALL APPROVED CAFES
@@ -47,18 +47,33 @@ export const getApprovedCafesService = async (
   page: number = 1,
   limit: number = 10,
 ) => {
-  return await findApprovedCafes(search, city, page, limit);
+  logger.info("Fetching approved cafes", { search, city, page, limit });
+
+  const result = await findApprovedCafes(search, city, page, limit);
+
+  logger.info("Fetched approved cafes successfully", {
+    count: Array.isArray((result as any)?.data)
+      ? (result as any).data.length
+      : undefined,
+  });
+
+  return result;
 };
 
 // =========================================
 // GET MY CAFE
 // =========================================
 export const getMyCafeService = async (userId: string) => {
+  logger.info("Fetching cafe for user", { userId });
+
   const cafe = await findCafeByUserId(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found for user", { userId });
     throw new NotFoundError("Cafe not found for this user");
   }
+
+  logger.info("Cafe fetched successfully", { userId, cafeId: cafe._id });
 
   return cafe;
 };
@@ -67,11 +82,16 @@ export const getMyCafeService = async (userId: string) => {
 // UPDATE MY CAFE
 // =========================================
 export const updateMyCafeService = async (userId: string, payload: any) => {
+  logger.info("Updating cafe for user", { userId, payload });
+
   const updated = await updateCafeByUserId(userId, payload);
 
   if (!updated) {
+    logger.warn("Cafe not found or update failed", { userId });
     throw new NotFoundError("Cafe not found or update failed");
   }
+
+  logger.info("Cafe updated successfully", { userId, cafeId: updated._id });
 
   return updated;
 };
@@ -80,11 +100,20 @@ export const updateMyCafeService = async (userId: string, payload: any) => {
 // TOGGLE OPEN / CLOSE CAFE
 // =========================================
 export const toggleCafeOpenService = async (userId: string) => {
+  logger.info("Toggling cafe open/close status", { userId });
+
   const cafe = await toggleCafeOpen(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found while toggling open status", { userId });
     throw new NotFoundError("Cafe not found");
   }
+
+  logger.info("Cafe open status toggled successfully", {
+    userId,
+    cafeId: cafe._id,
+    isOpen: (cafe as any).isOpen,
+  });
 
   return cafe;
 };
@@ -95,20 +124,37 @@ export const toggleCafeOpenService = async (userId: string) => {
  * =========================================================
  */
 export const createMenuItemService = async (userId: string, payload: any) => {
+  logger.info("Creating menu item", { userId, payload });
+
   const cafe = await findCafeByUserId(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found while creating menu item", { userId });
     throw new NotFoundError("Cafe not found");
   }
 
   if (payload.discountedPrice && payload.discountedPrice >= payload.price) {
+    logger.warn("Invalid discounted price on menu item creation", {
+      userId,
+      cafeId: cafe._id,
+      price: payload.price,
+      discountedPrice: payload.discountedPrice,
+    });
     throw new BadRequestError("Discounted price must be less than price");
   }
 
-  return createMenuItemRepo({
+  const menuItem = await createMenuItemRepo({
     ...payload,
     cafeId: cafe._id,
   });
+
+  logger.info("Menu item created successfully", {
+    userId,
+    cafeId: cafe._id,
+    menuItemId: menuItem._id,
+  });
+
+  return menuItem;
 };
 
 /**
@@ -117,13 +163,24 @@ export const createMenuItemService = async (userId: string, payload: any) => {
  * =========================================================
  */
 export const getMyMenuItemsService = async (userId: string) => {
+  logger.info("Fetching menu items for cafe owner", { userId });
+
   const cafe = await findCafeByUserId(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found while fetching menu items", { userId });
     throw new NotFoundError("Cafe not found");
   }
 
-  return await findMenuItemsByCafeId(cafe._id.toString());
+  const items = await findMenuItemsByCafeId(cafe._id.toString());
+
+  logger.info("Menu items fetched successfully", {
+    userId,
+    cafeId: cafe._id,
+    count: items.length,
+  });
+
+  return items;
 };
 
 /**
@@ -136,19 +193,29 @@ export const updateMenuItemService = async (
   itemId: string,
   payload: any,
 ) => {
+  logger.info("Updating menu item", { userId, itemId, payload });
+
   const cafe = await findCafeByUserId(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found while updating menu item", { userId, itemId });
     throw new NotFoundError("Cafe not found");
   }
 
   const item = await findMenuItemByIdRepo(itemId);
 
   if (!item) {
+    logger.warn("Menu item not found", { userId, itemId });
     throw new NotFoundError("Menu item not found");
   }
 
   if (item.cafeId.toString() !== cafe._id.toString()) {
+    logger.warn("Unauthorized menu item update attempt", {
+      userId,
+      itemId,
+      cafeId: cafe._id,
+      itemCafeId: item.cafeId,
+    });
     throw new ForbiddenError("You are not allowed to update this menu item");
   }
 
@@ -158,10 +225,24 @@ export const updateMenuItemService = async (
   const discountedPrice = updatePayload.discountedPrice ?? item.discountedPrice;
 
   if (discountedPrice !== undefined && discountedPrice >= price) {
+    logger.warn("Invalid discounted price on menu item update", {
+      userId,
+      itemId,
+      price,
+      discountedPrice,
+    });
     throw new BadRequestError("Discounted price must be less than price");
   }
 
-  return updateMenuItemRepo(itemId, updatePayload);
+  const updatedItem = await updateMenuItemRepo(itemId, updatePayload);
+
+  logger.info("Menu item updated successfully", {
+    userId,
+    itemId,
+    cafeId: cafe._id,
+  });
+
+  return updatedItem;
 };
 
 /**
@@ -170,23 +251,41 @@ export const updateMenuItemService = async (
  * =========================================================
  */
 export const deleteMenuItemService = async (userId: string, itemId: string) => {
+  logger.info("Deleting menu item", { userId, itemId });
+
   const cafe = await findCafeByUserId(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found while deleting menu item", { userId, itemId });
     throw new NotFoundError("Cafe not found");
   }
 
   const item = await findMenuItemByIdRepo(itemId);
 
   if (!item) {
+    logger.warn("Menu item not found for deletion", { userId, itemId });
     throw new NotFoundError("Menu item not found");
   }
 
   if (item.cafeId.toString() !== cafe._id.toString()) {
+    logger.warn("Unauthorized menu item deletion attempt", {
+      userId,
+      itemId,
+      cafeId: cafe._id,
+      itemCafeId: item.cafeId,
+    });
     throw new ForbiddenError("You are not allowed to delete this menu item");
   }
 
-  return deleteMenuItemRepo(itemId);
+  const result = await deleteMenuItemRepo(itemId);
+
+  logger.info("Menu item deleted successfully", {
+    userId,
+    itemId,
+    cafeId: cafe._id,
+  });
+
+  return result;
 };
 
 /**
@@ -198,25 +297,50 @@ export const toggleMenuAvailabilityService = async (
   userId: string,
   itemId: string,
 ) => {
+  logger.info("Toggling menu item availability", { userId, itemId });
+
   const cafe = await findCafeByUserId(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found while toggling menu availability", {
+      userId,
+      itemId,
+    });
     throw new NotFoundError("Cafe not found");
   }
 
   const item = await findMenuItemByIdRepo(itemId);
 
   if (!item) {
+    logger.warn("Menu item not found while toggling availability", {
+      userId,
+      itemId,
+    });
     throw new NotFoundError("Menu item not found");
   }
 
   if (item.cafeId.toString() !== cafe._id.toString()) {
+    logger.warn("Unauthorized menu item availability toggle attempt", {
+      userId,
+      itemId,
+      cafeId: cafe._id,
+      itemCafeId: item.cafeId,
+    });
     throw new ForbiddenError("You are not allowed to update this menu item");
   }
 
   item.isAvailable = !item.isAvailable;
 
-  return saveMenuItemRepo(item);
+  const savedItem = await saveMenuItemRepo(item);
+
+  logger.info("Menu item availability toggled successfully", {
+    userId,
+    itemId,
+    cafeId: cafe._id,
+    isAvailable: savedItem.isAvailable,
+  });
+
+  return savedItem;
 };
 
 /**
@@ -228,13 +352,23 @@ export const getMyCafeOrdersService = async (
   userId: string,
   options: GetCafeOrdersOptions,
 ) => {
+  logger.info("Fetching cafe orders", { userId, options });
+
   const cafe = await findCafeByUserId(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found while fetching cafe orders", { userId });
     throw new NotFoundError("Cafe not found");
   }
 
-  return findOrdersByCafeId(cafe._id.toString(), options);
+  const orders = await findOrdersByCafeId(cafe._id.toString(), options);
+
+  logger.info("Cafe orders fetched successfully", {
+    userId,
+    cafeId: cafe._id,
+  });
+
+  return orders;
 };
 
 /**
@@ -246,14 +380,28 @@ export const getCafeOrderDetailsService = async (
   userId: string,
   orderId: string,
 ) => {
+  logger.info("Fetching cafe order details", { userId, orderId });
+
   const cafe = await findCafeByUserId(userId);
   if (!cafe) {
+    logger.warn("Cafe not found while fetching order details", {
+      userId,
+      orderId,
+    });
     throw new NotFoundError("Cafe not found");
   }
   const order = await findOrderByCafeIdAndOrderId(cafe._id.toString(), orderId);
   if (!order) {
+    logger.warn("Order not found", { userId, cafeId: cafe._id, orderId });
     throw new NotFoundError("Order not found");
   }
+
+  logger.info("Cafe order details fetched successfully", {
+    userId,
+    cafeId: cafe._id,
+    orderId,
+  });
+
   return order;
 };
 
@@ -267,15 +415,26 @@ export const updateOrderStatusService = async (
   orderId: string,
   status: IOrder["status"],
 ) => {
+  logger.info("Updating order status", { userId, orderId, status });
+
   const cafe = await findCafeByUserId(userId);
 
   if (!cafe) {
+    logger.warn("Cafe not found while updating order status", {
+      userId,
+      orderId,
+    });
     throw new NotFoundError("Cafe not found");
   }
 
   const order = await findOrderByCafeIdAndOrderId(cafe._id.toString(), orderId);
 
   if (!order) {
+    logger.warn("Order not found while updating status", {
+      userId,
+      cafeId: cafe._id,
+      orderId,
+    });
     throw new NotFoundError("Order not found");
   }
 
@@ -283,18 +442,40 @@ export const updateOrderStatusService = async (
   const allowedNextStatuses = ORDER_STATUS_TRANSITIONS[currentStatus];
 
   if (!allowedNextStatuses) {
+    logger.error("Unknown order status encountered", {
+      userId,
+      orderId,
+      currentStatus,
+    });
     throw new BadRequestError(`Unknown order status: ${currentStatus}`);
   }
 
   if (allowedNextStatuses.length === 0) {
+    logger.warn("Attempted to update a terminal-status order", {
+      userId,
+      orderId,
+      currentStatus,
+    });
     throw new BadRequestError(`Cannot update a ${currentStatus} order`);
   }
 
   if (currentStatus === status) {
+    logger.warn("Order status update requested with same status", {
+      userId,
+      orderId,
+      status,
+    });
     throw new BadRequestError(`Order is already ${status}`);
   }
 
   if (!allowedNextStatuses.includes(status)) {
+    logger.warn("Invalid order status transition attempted", {
+      userId,
+      orderId,
+      currentStatus,
+      requestedStatus: status,
+      allowedNextStatuses,
+    });
     throw new BadRequestError(
       `Invalid status transition from ${currentStatus} to ${status}. Allowed: ${allowedNextStatuses.join(", ")}`,
     );
@@ -307,6 +488,11 @@ export const updateOrderStatusService = async (
   );
 
   if (!updatedOrder) {
+    logger.warn("Order not found after status update attempt", {
+      userId,
+      cafeId: cafe._id,
+      orderId,
+    });
     throw new NotFoundError("Order not found");
   }
 
@@ -336,7 +522,7 @@ export const updateOrderStatusService = async (
 
     case "cancelled":
       updatedOrder.cancelledAt = new Date();
-      updatedOrder.cancelledBy = "cafe";
+      updatedOrder.cancelledBy = "cafe_owner";
       updatedOrder.cancellationReason = "Cancelled by cafe";
       break;
   }
@@ -348,10 +534,22 @@ export const updateOrderStatusService = async (
 
   await updatedOrder.save();
 
+  logger.info("Order status updated successfully", {
+    userId,
+    cafeId: cafe._id,
+    orderId,
+    previousStatus: currentStatus,
+    newStatus: status,
+  });
+
   if (status === "ready") {
     emitOrderReady(studentId, {
       orderId: updatedOrder._id.toString(),
       pickupCode: updatedOrder.pickupCode,
+    });
+    logger.info("Order ready event emitted", {
+      orderId: updatedOrder._id,
+      studentId,
     });
   } else if (status === "cancelled") {
     emitOrderCancelled(studentId, {
@@ -359,12 +557,22 @@ export const updateOrderStatusService = async (
       reason: updatedOrder.cancellationReason,
       cancelledBy: "cafe",
     });
+    logger.info("Order cancelled event emitted", {
+      orderId: updatedOrder._id,
+      studentId,
+      reason: updatedOrder.cancellationReason,
+    });
   } else {
     emitStatusUpdate(studentId, {
       orderId: updatedOrder._id.toString(),
       status,
       estimatedReadyTime: updatedOrder.estimatedReadyTime,
       message: `Your order is now ${status}`,
+    });
+    logger.info("Order status update event emitted", {
+      orderId: updatedOrder._id,
+      studentId,
+      status,
     });
   }
 
@@ -377,6 +585,8 @@ export const updateOrderStatusService = async (
  * =========================================================
  */
 export const autoCancelStaleOrdersService = async (): Promise<void> => {
+  logger.info("Running auto-cancel stale orders job");
+
   const cutoffDate = new Date(
     Date.now() - ORDER_AUTO_CANCEL_MINUTES * 60 * 1000,
   );
@@ -384,6 +594,7 @@ export const autoCancelStaleOrdersService = async (): Promise<void> => {
   const staleOrders = await findExpiredPendingOrders(cutoffDate);
 
   if (staleOrders.length === 0) {
+    logger.info("No stale pending orders found", { cutoffDate });
     return;
   }
 
@@ -427,6 +638,68 @@ export const autoCancelStaleOrdersService = async (): Promise<void> => {
       });
     }
   }
+
+  logger.info("Auto-cancel stale orders job completed", {
+    processedCount: staleOrders.length,
+  });
+};
+
+/**
+ * =========================================================
+ * CANCEL ORDER CANCEL
+ * =========================================================
+ */
+export const cancelSpecificStaleOrderService = async (
+  orderId: string,
+): Promise<void> => {
+  logger.info("Cancelling specific stale order", { orderId });
+
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    logger.warn("Order not found for manual cancellation", { orderId });
+    throw new NotFoundError("Order not found.");
+  }
+
+  const cancellableStatuses = ["pending", "accepted"];
+
+  if (!cancellableStatuses.includes(order.status)) {
+    logger.warn("Order cannot be cancelled due to invalid status", {
+      orderId,
+      status: order.status,
+    });
+    throw new BadRequestError("Order cannot be cancelled");
+  }
+
+  const reason = "Cafe did not respond in time";
+
+  await cancelOrderRepo(order._id.toString(), "super_admin", reason);
+
+  const studentId = order.studentId.toString();
+
+  emitOrderCancelled(studentId, {
+    orderId: order._id.toString(),
+    reason,
+    cancelledBy: "admin",
+  });
+
+  emitStatusUpdate(studentId, {
+    orderId: order._id.toString(),
+    status: "cancelled",
+    message: STATUS_MESSAGES["cancelled"],
+  });
+
+  emitAdminOrderEvent("admin:order:auto_cancelled", {
+    orderId: order._id.toString(),
+    cafeId: order.cafeId.toString(),
+    studentId,
+    reason,
+  });
+
+  logger.info("Specific order auto-cancelled manually", {
+    orderId: order._id,
+    cafeId: order.cafeId,
+  });
 };
 
 // =========================================
@@ -439,5 +712,17 @@ export const getMyComplaintsService = async (
   page?: number,
   limit?: number,
 ) => {
-  return await findMyComplaints(userId, status, category, page, limit);
+  logger.info("Fetching complaints for user", {
+    userId,
+    status,
+    category,
+    page,
+    limit,
+  });
+
+  const result = await findMyComplaints(userId, status, category, page, limit);
+
+  logger.info("Complaints fetched successfully", { userId });
+
+  return result;
 };

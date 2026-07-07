@@ -5,6 +5,7 @@ import {
 } from "./menu.repository";
 
 import { ForbiddenError } from "../../utils/errors/app.error";
+import { logger } from "../../config/logger.config";
 
 /**
  * =========================================================
@@ -12,9 +13,15 @@ import { ForbiddenError } from "../../utils/errors/app.error";
  * =========================================================
  */
 export const getCafeMenuService = async (cafeId: string) => {
+  logger.info(`Fetching menu for cafe: ${cafeId}`);
+
   await findCafeRepo(cafeId);
 
-  return getMenuItemsByCafeRepo(cafeId);
+  const menuItems = await getMenuItemsByCafeRepo(cafeId);
+
+  logger.info(`Fetched ${menuItems.length} menu items for cafe: ${cafeId}`);
+
+  return menuItems;
 };
 
 /**
@@ -23,7 +30,15 @@ export const getCafeMenuService = async (cafeId: string) => {
  * =========================================================
  */
 export const getMenuItemService = async (itemId: string) => {
-  return findMenuItemByIdRepo(itemId);
+  logger.info(`Fetching menu item: ${itemId}`);
+
+  const item = await findMenuItemByIdRepo(itemId);
+
+  if (!item) {
+    logger.warn(`Menu item not found: ${itemId}`);
+  }
+
+  return item;
 };
 
 /**
@@ -35,9 +50,14 @@ export const verifyCafeOwnershipService = async (
   cafeId: string,
   userId: string,
 ) => {
+  logger.info(`Verifying ownership of cafe ${cafeId} for user ${userId}`);
+
   const cafe = await findCafeRepo(cafeId);
 
   if (cafe.userId.toString() !== userId) {
+    logger.warn(
+      `Unauthorized attempt: user ${userId} tried to manage cafe ${cafeId}`,
+    );
     throw new ForbiddenError("You are not allowed to manage this cafe");
   }
 

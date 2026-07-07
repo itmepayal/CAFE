@@ -13,12 +13,7 @@ import {
 export const findCartByUserId = async (
   userId: string,
 ): Promise<ICart | null> => {
-  return Cart.findOne({ userId })
-    .populate("items.menuItemId")
-    .populate("cafeId")
-    .catch(() => {
-      throw new InternalServerError("Failed to fetch cart");
-    });
+  return Cart.findOne({ userId });
 };
 
 /**

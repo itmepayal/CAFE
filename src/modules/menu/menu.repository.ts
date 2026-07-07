@@ -14,18 +14,18 @@ import {
 export const getMenuItemsByCafeRepo = async (
   cafeId: string,
 ): Promise<IMenuItem[]> => {
-  return MenuItem.find({
-    cafeId,
-    isDeleted: false,
-  })
-    .populate("categoryId")
-    .sort({
+  try {
+    return await MenuItem.find({
+      cafeId,
+      isDeleted: false,
+    }).sort({
       displayOrder: 1,
       createdAt: -1,
-    })
-    .catch(() => {
-      throw new InternalServerError("Failed to fetch menu items");
     });
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
 };
 
 /**

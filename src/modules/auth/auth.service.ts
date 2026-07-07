@@ -15,6 +15,7 @@ import {
   createAppleUser,
   updateUserSession,
 } from "./auth.repository";
+import { logger } from "../../config/logger.config";
 
 /**
  * =========================================================
@@ -53,7 +54,10 @@ interface AuthResponse {
 export const googleLogin = async ({
   token,
 }: GoogleLoginPayload): Promise<AuthResponse> => {
-  const googleUser = await verifyGoogleToken(token).catch(() => {
+  logger.info("Google login attempt");
+
+  const googleUser = await verifyGoogleToken(token).catch((err) => {
+    logger.warn(`Google token verification failed: ${err?.message}`);
     throw new UnauthorizedError("Invalid Google token");
   });
 
@@ -63,6 +67,7 @@ export const googleLogin = async ({
   );
 
   if (!user) {
+    logger.info(`Creating new user via Google login: ${googleUser.email}`);
     user = await createGoogleUser({
       name: googleUser.name,
       email: googleUser.email,
@@ -72,6 +77,7 @@ export const googleLogin = async ({
   }
 
   if (user.isBlocked) {
+    logger.warn(`Blocked user attempted Google login: ${user._id}`);
     throw new UnauthorizedError("Account blocked");
   }
 
@@ -84,6 +90,8 @@ export const googleLogin = async ({
     sessionId: crypto.randomUUID(),
     familyId: crypto.randomUUID(),
   });
+
+  logger.info(`Google login successful for user: ${user._id}`);
 
   return {
     user,
@@ -100,13 +108,17 @@ export const googleLogin = async ({
 export const appleLogin = async ({
   identityToken,
 }: AppleLoginPayload): Promise<AuthResponse> => {
-  const appleUser = await verifyAppleToken(identityToken).catch(() => {
+  logger.info("Apple login attempt");
+
+  const appleUser = await verifyAppleToken(identityToken).catch((err) => {
+    logger.warn(`Apple token verification failed: ${err?.message}`);
     throw new UnauthorizedError("Invalid Apple token");
   });
 
   let user = await findUserByProviderId(appleUser.providerId);
 
   if (!user) {
+    logger.info(`Creating new user via Apple login: ${appleUser.email}`);
     user = await createAppleUser({
       email: appleUser.email,
       providerId: appleUser.providerId,
@@ -114,6 +126,7 @@ export const appleLogin = async ({
   }
 
   if (user.isBlocked) {
+    logger.warn(`Blocked user attempted Apple login: ${user._id}`);
     throw new UnauthorizedError("Account blocked");
   }
 
@@ -126,6 +139,8 @@ export const appleLogin = async ({
     sessionId: crypto.randomUUID(),
     familyId: crypto.randomUUID(),
   });
+
+  logger.info(`Apple login successful for user: ${user._id}`);
 
   return {
     user,
@@ -140,5 +155,7 @@ export const appleLogin = async ({
  * =========================================================
  */
 export const getCurrentUser = async (userId: string): Promise<IUser> => {
+  logger.info(`Fetching current user: ${userId}`);
+
   return await findUserById(userId);
 };

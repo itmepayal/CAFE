@@ -8,6 +8,7 @@ import {
   getComplaintByIdController,
   getAllComplaintsController,
   getPendingCafesController,
+  triggerSpecificOrderCancelController,
 } from "./admin.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
@@ -391,6 +392,55 @@ adminRouter.get(
   authenticate,
   authorize("super_admin"),
   getPendingCafesController,
+);
+
+/**
+ * @swagger
+ * /admin/orders/auto-cancel/trigger/{orderId}:
+ *   post:
+ *     summary: Manually trigger auto-cancel for a specific order
+ *     description: >
+ *       Cancels a single order if it is still in "pending" status, bypassing
+ *       the wait for the scheduled auto-cancel cron job. Useful for testing
+ *       or emergency manual intervention on a specific stale order.
+ *       Restricted to super_admin.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         description: ID of the order to cancel
+ *         schema:
+ *           type: string
+ *           example: 6a4cbb418eeb8e1b5ab76d0a
+ *     responses:
+ *       200:
+ *         description: Order cancelled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Order 6a4cbb418eeb8e1b5ab76d0a cancelled successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden — only super_admin can trigger this job
+ *       404:
+ *         description: Pending order not found with this ID
+ */
+adminRouter.post(
+  "/orders/auto-cancel/trigger/:orderId",
+  authenticate,
+  authorize("super_admin"),
+  triggerSpecificOrderCancelController,
 );
 
 export default adminRouter;
