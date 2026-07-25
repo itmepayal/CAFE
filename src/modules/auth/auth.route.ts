@@ -5,6 +5,8 @@ import {
   getCurrentUserController,
   logoutController,
   changeProfileController,
+  refreshTokenController,
+  adminLoginController,
 } from "./auth.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { upload } from "../../config/multer.config";
@@ -143,3 +145,62 @@ authRouter.patch(
  *         description: Unauthorized
  */
 authRouter.post("/logout", authenticate, logoutController);
+
+/**
+ * @swagger
+ * /auth/refresh-token:
+ *   post:
+ *     summary: Refresh access and refresh tokens
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 example: eyJhbGciOiJIUzI1NiIs...
+ *     responses:
+ *       200:
+ *         description: Tokens refreshed successfully
+ *       401:
+ *         description: Invalid or expired refresh token
+ */
+authRouter.post("/refresh-token", refreshTokenController);
+
+/**
+ * @swagger
+ * /auth/admin/login:
+ *   post:
+ *     summary: Login as admin (Google or Apple, super_admin role only)
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - provider
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum: [google, apple]
+ *                 example: google
+ *               token:
+ *                 type: string
+ *                 description: Required when provider is "google"
+ *                 example: eyJhbGciOiJSUzI1NiIs...
+ *               identityToken:
+ *                 type: string
+ *                 description: Required when provider is "apple"
+ *                 example: eyJraWQiOiJ...
+ *     responses:
+ *       200:
+ *         description: Admin login successful and cookies set
+ *       401:
+ *         description: Invalid token, or user is not a super_admin
+ */
+authRouter.post("/admin/login", adminLoginController);

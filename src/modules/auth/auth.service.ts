@@ -3,6 +3,7 @@ import { IUser } from "../../models/user";
 import {
   generateAccessToken,
   generateRefreshToken,
+  verifyRefreshToken,
 } from "../../utils/jwt/token.jwt";
 import { verifyGoogleToken } from "../../providers/google.provider";
 import { verifyAppleToken } from "../../providers/apple.provider";
@@ -17,7 +18,11 @@ import {
   updateProfileRepo,
 } from "./auth.repository";
 import { logger } from "../../config/logger.config";
-import { UpdateProfilePayload } from "./auth.type";
+import {
+  AdminLoginPayload,
+  RefreshTokenPayload,
+  UpdateProfilePayload,
+} from "./auth.type";
 
 /**
  * =========================================================
@@ -192,4 +197,86 @@ export const changeProfile = async (
   }
 
   return await updateProfileRepo(userId, updateData);
+};
+
+/**
+ * =========================================================
+ * REFRESH TOKENS
+ * =========================================================
+ */
+export const refreshTokens = async ({
+  refreshToken,
+}: RefreshTokenPayload): Promise<AuthResponse> => {
+  if (!refreshToken) {
+    throw new UnauthorizedError("Refresh token missing");
+  }
+
+  let decoded;
+  try {
+    decoded = verifyRefreshToken(refreshToken) as {
+      sub: string;
+      sessionId: string;
+      familyId: string;
+    };
+  } catch {
+    throw new UnauthorizedError("Invalid or expired refresh token");
+  }
+
+  const user = await findUserById(decoded.sub);
+
+  if (!user) {
+    logger.warn(`Refresh token used for non-existent user: ${decoded.sub}`);
+    throw new UnauthorizedError("Invalid refresh token");
+  }
+
+  if (user.isBlocked) {
+    logger.warn(`Blocked user attempted token refresh: ${user._id}`);
+    throw new UnauthorizedError("Account blocked");
+  }
+
+  const accessToken = generateAccessToken(user);
+
+  const { refreshToken: newRefreshToken } = generateRefreshToken({
+    user,
+    sessionId: crypto.randomUUID(),
+    familyId: decoded.familyId,
+  });
+
+  logger.info(`Token refreshed for user: ${user._id}`);
+
+  return {
+    user,
+    accessToken,
+    refreshToken: newRefreshToken,
+  };
+};
+
+export const adminLogin = async ({
+  provider,
+  token,
+  identityToken,
+}: AdminLoginPayload): Promise<AuthResponse> => {
+  logger.info(`Admin login attempt via ${provider}`);
+
+  let result: AuthResponse;
+
+  if (provider === "google") {
+    if (!token) throw new UnauthorizedError("Google token missing");
+    result = await googleLogin({ token });
+  } else if (provider === "apple") {
+    if (!identityToken)
+      throw new UnauthorizedError("Apple identity token missing");
+    result = await appleLogin({ identityToken });
+  } else {
+    throw new UnauthorizedError("Unsupported login provider");
+  }
+
+  if (result.user.role !== "super_admin") {
+    logger.warn(`Non-admin attempted admin login: ${result.user._id}`);
+    throw new UnauthorizedError("Admin access required");
+  }
+
+  logger.info(`Admin login successful for user: ${result.user._id}`);
+
+  return result;
 };

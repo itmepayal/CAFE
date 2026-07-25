@@ -5,6 +5,8 @@ import {
   appleLogin,
   getCurrentUser,
   changeProfile,
+  refreshTokens,
+  adminLogin,
 } from "./auth.service";
 import { setAuthCookies } from "../../utils/cookies/cookie.utils";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
@@ -127,6 +129,57 @@ export const changeProfileController = asyncHandler(
       success: true,
       message: "Profile updated successfully",
       data: user,
+    });
+  },
+);
+
+/**
+ * =========================================================
+ * REFRESH TOKENS
+ * =========================================================
+ */
+export const refreshTokenController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const refreshToken = req.cookies?.refreshToken ?? req.body?.refreshToken;
+
+    const result = await refreshTokens({ refreshToken });
+
+    setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Token refreshed successfully",
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      },
+    });
+  },
+);
+
+export const adminLoginController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { provider, token, identityToken } = req.body;
+
+    const result = await adminLogin({ provider, token, identityToken });
+
+    setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Admin login successful",
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      },
     });
   },
 );

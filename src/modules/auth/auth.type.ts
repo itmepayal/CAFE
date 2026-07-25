@@ -4,3 +4,13 @@ export interface UpdateProfilePayload {
   university?: string;
   profileImage?: string;
 }
+
+export interface RefreshTokenPayload {
+  refreshToken: string;
+}
+
+export interface AdminLoginPayload {
+  provider: "google" | "apple";
+  token?: string;
+  identityToken?: string;
+}
