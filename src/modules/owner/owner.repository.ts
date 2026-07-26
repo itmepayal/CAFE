@@ -6,7 +6,7 @@ import {
   InternalServerError,
   NotFoundError,
 } from "../../utils/errors/app.error";
-import { FindOrdersOptions } from "./owner.type";
+import { GetCafeOrdersOptions } from "./owner.type";
 
 // =========================================
 // FIND APPROVED CAFES
@@ -249,81 +249,51 @@ export const findMyComplaints = async (
 // =========================================
 export const findOrdersByCafeId = async (
   cafeId: string,
-  options: FindOrdersOptions,
+  options: GetCafeOrdersOptions,
 ) => {
   const {
     status,
     paymentStatus,
+    deliveryStatus,
     search,
     from,
     to,
-    today,
     page = 1,
-    limit = 20,
-    sort = "createdAt",
-    order = "desc",
+    limit = 10,
   } = options;
 
-  const filter: any = {
-    cafeId,
-  };
+  const filter: Record<string, any> = { cafeId };
 
-  if (status) {
-    filter.status = status;
-  }
+  if (status) filter.status = status;
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
+  if (deliveryStatus) filter.deliveryStatus = deliveryStatus;
 
-  if (paymentStatus) {
-    filter["payment.status"] = paymentStatus;
+  if (from || to) {
+    filter.createdAt = {};
+    if (from) filter.createdAt.$gte = new Date(from);
+    if (to) filter.createdAt.$lte = new Date(to);
   }
 
   if (search) {
-    filter.orderNumber = { $regex: search, $options: "i" };
+    filter.$or = [
+      { orderNumber: { $regex: search, $options: "i" } },
+      { "items.itemName": { $regex: search, $options: "i" } },
+    ];
   }
 
-  if (today) {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+  const skip = (page - 1) * limit;
 
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-
-    filter.createdAt = {
-      $gte: start,
-      $lte: end,
-    };
-  } else if (from || to) {
-    filter.createdAt = {};
-
-    if (from) {
-      filter.createdAt.$gte = new Date(from);
-    }
-
-    if (to) {
-      const end = new Date(to);
-      end.setHours(23, 59, 59, 999);
-
-      filter.createdAt.$lte = end;
-    }
-  }
-
-  const total = await Order.countDocuments(filter);
-
-  const orders = await Order.find(filter)
-    .populate("studentId", "name email phone")
-    .sort({
-      [sort]: order === "asc" ? 1 : -1,
-    })
-    .skip((page - 1) * limit)
-    .limit(limit)
-    .lean();
+  const [data, total] = await Promise.all([
+    Order.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Order.countDocuments(filter),
+  ]);
 
   return {
-    success: true,
+    data,
     total,
     page,
     limit,
     pages: Math.ceil(total / limit),
-    data: orders,
   };
 };
 

@@ -14,6 +14,7 @@ export interface FindOrdersOptions {
 export interface GetCafeOrdersOptions {
   status?: string;
   paymentStatus?: string;
+  deliveryStatus?: string;
   search?: string;
   from?: string;
   to?: string;

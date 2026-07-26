@@ -392,7 +392,7 @@ ownerRouter.patch(
  * /owners/cafes/my-cafe/orders:
  *   get:
  *     summary: Get all orders for the logged-in cafe owner
- *     description: Returns all orders belonging to the authenticated owner's cafe. Optionally filter by order status.
+ *     description: Returns all orders belonging to the authenticated owner's cafe. Optionally filter by order status, payment status, delivery status, and order type.
  *     tags: [Owner]
  *     security:
  *       - cookieAuth: []
@@ -415,6 +415,27 @@ ownerRouter.patch(
  *         required: false
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: orderType
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - pickup
+ *             - delivery
+ *         description: Filter orders by type (pickup or delivery)
+ *       - in: query
+ *         name: deliveryStatus
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - not_assigned
+ *             - assigned
+ *             - picked_up
+ *             - out_for_delivery
+ *             - delivered
+ *         description: Filter by delivery status (only applicable when orderType is delivery)
  *       - in: query
  *         name: search
  *         required: false
