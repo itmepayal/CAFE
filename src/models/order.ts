@@ -1,4 +1,18 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import {
+  PAYMENT_STATUSES,
+  PAYMENT_METHODS,
+  ORDER_STATUSES,
+  ORDER_TYPES,
+  DELIVERY_STATUSES,
+  CANCELLED_BY,
+  PaymentStatus,
+  PaymentMethod,
+  OrderStatus,
+  OrderType,
+  DeliveryStatus,
+  CancelledBy,
+} from "../modules/order/order.constant";
 
 export interface IOrderItem {
   menuItemId: mongoose.Types.ObjectId;
@@ -10,61 +24,54 @@ export interface IOrderItem {
   specialInstructions: string;
 }
 
+export interface IDeliveryAddress {
+  hostelName?: string;
+  roomNumber?: string;
+  landmark?: string;
+  contactNumber: string;
+  fullAddress: string;
+}
+
 export interface IOrder extends Document {
   studentId: mongoose.Types.ObjectId;
   cafeId: mongoose.Types.ObjectId;
-
   orderNumber: string;
-
   items: IOrderItem[];
-
   subtotal: number;
   taxAmount: number;
   discountAmount: number;
+  deliveryCharge: number;
   totalAmount: number;
-
-  paymentStatus: "pending" | "paid" | "failed" | "refunded";
-
-  paymentMethod: "upi" | "card" | "wallet" | "cash";
-
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
   paymentId: string;
-
-  status:
-    | "pending"
-    | "accepted"
-    | "rejected"
-    | "preparing"
-    | "ready"
-    | "completed"
-    | "cancelled";
-
+  status: OrderStatus;
+  orderType: OrderType;
+  isOpen: boolean;
+  supportsDelivery: boolean;
   pickupCode: string;
-
+  deliveryAddress?: IDeliveryAddress;
+  deliveryPersonId?: mongoose.Types.ObjectId | null;
+  deliveryStatus?: DeliveryStatus | null;
+  cancelledBy: CancelledBy | null;
   estimatedReadyTime: Date | null;
-
   notes: string;
-
-  cancelledBy: "student" | "cafe_owner" | "super_admin" | null;
-
   cancellationReason: string;
-
   rating?: {
     stars?: number;
     review?: string;
     reviewedAt?: Date;
   };
-
   statusHistory: {
     status: string;
     changedAt: Date;
   }[];
-
   acceptedAt?: Date;
   preparingAt?: Date;
   readyAt?: Date;
+  outForDeliveryAt?: Date;
   completedAt?: Date;
   cancelledAt?: Date;
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -110,6 +117,38 @@ const orderItemSchema = new Schema<IOrderItem>(
       type: String,
       default: "",
       maxlength: 200,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
+const deliveryAddressSchema = new Schema<IDeliveryAddress>(
+  {
+    hostelName: {
+      type: String,
+      default: "",
+    },
+
+    roomNumber: {
+      type: String,
+      default: "",
+    },
+
+    landmark: {
+      type: String,
+      default: "",
+    },
+
+    contactNumber: {
+      type: String,
+      required: true,
+    },
+
+    fullAddress: {
+      type: String,
+      required: true,
     },
   },
   {
@@ -166,6 +205,12 @@ const orderSchema = new Schema<IOrder>(
       min: 0,
     },
 
+    deliveryCharge: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     totalAmount: {
       type: Number,
       required: true,
@@ -174,14 +219,14 @@ const orderSchema = new Schema<IOrder>(
 
     paymentStatus: {
       type: String,
-      enum: ["pending", "paid", "failed", "refunded"],
+      enum: PAYMENT_STATUSES,
       default: "pending",
       index: true,
     },
 
     paymentMethod: {
       type: String,
-      enum: ["upi", "card", "wallet", "cash"],
+      enum: PAYMENT_METHODS,
       default: "upi",
     },
 
@@ -192,22 +237,39 @@ const orderSchema = new Schema<IOrder>(
 
     status: {
       type: String,
-      enum: [
-        "pending",
-        "accepted",
-        "rejected",
-        "preparing",
-        "ready",
-        "completed",
-        "cancelled",
-      ],
+      enum: ORDER_STATUSES,
       default: "pending",
+      index: true,
+    },
+
+    orderType: {
+      type: String,
+      enum: ORDER_TYPES,
+      required: true,
+      default: "pickup",
       index: true,
     },
 
     pickupCode: {
       type: String,
       index: true,
+    },
+
+    deliveryAddress: {
+      type: deliveryAddressSchema,
+      default: undefined,
+    },
+
+    deliveryPersonId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    deliveryStatus: {
+      type: String,
+      enum: DELIVERY_STATUSES,
+      default: null,
     },
 
     estimatedReadyTime: {
@@ -223,7 +285,7 @@ const orderSchema = new Schema<IOrder>(
 
     cancelledBy: {
       type: String,
-      enum: ["student", "cafe_owner", "super_admin"],
+      enum: CANCELLED_BY,
       default: null,
     },
 
@@ -261,6 +323,7 @@ const orderSchema = new Schema<IOrder>(
     acceptedAt: Date,
     preparingAt: Date,
     readyAt: Date,
+    outForDeliveryAt: Date,
     completedAt: Date,
     cancelledAt: Date,
   },
@@ -274,6 +337,7 @@ orderSchema.index({ studentId: 1, createdAt: -1 });
 orderSchema.index({ cafeId: 1, createdAt: -1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ paymentStatus: 1 });
+orderSchema.index({ orderType: 1 });
 
 orderSchema.pre("save", function (next) {
   const order = this as IOrder;
@@ -283,12 +347,21 @@ orderSchema.pre("save", function (next) {
       "GV" + Date.now().toString().slice(-8) + Math.floor(Math.random() * 1000);
   }
 
-  if (!order.pickupCode) {
+  if (order.orderType === "pickup" && !order.pickupCode) {
     order.pickupCode = Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  if (order.orderType === "delivery") {
+    if (!order.deliveryAddress) {
+      return;
+    }
+
+    if (!order.deliveryStatus) {
+      order.deliveryStatus = "not_assigned";
+    }
   }
 });
 
-const Order: Model<IOrder> =
-  mongoose.models.Order || mongoose.model<IOrder>("Order", orderSchema);
+const Order: Model<IOrder> = mongoose.model<IOrder>("Order", orderSchema);
 
 export default Order;

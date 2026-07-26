@@ -13,6 +13,11 @@ import {
   getMyCafeOrdersService,
   getCafeOrderDetailsService,
   updateOrderStatusService,
+  acceptOrderService,
+  rejectOrderService,
+  markOrderPreparingService,
+  markOrderReadyService,
+  completePickupOrderService,
 } from "./owner.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
@@ -391,6 +396,143 @@ export const updateOrderStatusController = async (
     res.status(200).json({
       success: true,
       message: "Order status updated successfully",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * ACCEPT ORDER
+ * =========================================================
+ */
+export const acceptOrderController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId } = req.params;
+    const { estimatedReadyTime } = req.body;
+
+    const order = await acceptOrderService(
+      orderId,
+      userId,
+      estimatedReadyTime ? new Date(estimatedReadyTime) : undefined,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Order accepted successfully",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * REJECT ORDER
+ * =========================================================
+ */
+export const rejectOrderController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId } = req.params;
+    const { reason } = req.body;
+
+    const order = await rejectOrderService(orderId, userId, reason);
+
+    res.status(200).json({
+      success: true,
+      message: "Order rejected successfully",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * MARK ORDER AS PREPARING
+ * =========================================================
+ */
+export const markOrderPreparingController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId } = req.params;
+
+    const order = await markOrderPreparingService(orderId, userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Order marked as preparing",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * MARK ORDER AS READY
+ * =========================================================
+ */
+export const markOrderReadyController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId } = req.params;
+
+    const order = await markOrderReadyService(orderId, userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Order marked as ready",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * COMPLETE PICKUP ORDER
+ * =========================================================
+ */
+export const completePickupOrderController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const { orderId } = req.params;
+    const { pickupCode } = req.body;
+
+    const order = await completePickupOrderService(orderId, userId, pickupCode);
+
+    res.status(200).json({
+      success: true,
+      message: "Order completed successfully",
       data: order,
     });
   } catch (error) {

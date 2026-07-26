@@ -12,6 +12,11 @@ import {
   getMyCafeOrdersController,
   getCafeOrderDetailsController,
   updateOrderStatusController,
+  acceptOrderController,
+  rejectOrderController,
+  markOrderPreparingController,
+  markOrderReadyController,
+  completePickupOrderController,
 } from "./owner.controller";
 
 import { upload } from "../../config/multer.config";
@@ -185,96 +190,6 @@ ownerRouter.patch(
  *     responses:
  *       200:
  *         description: Menu items fetched successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                         example: 685fcbbfd5d1c29f5d6a1234
- *                       cafeId:
- *                         type: string
- *                         example: 685fcbbfd5d1c29f5d6a5678
- *                       category:
- *                         type: string
- *                         example: Snacks
- *                       name:
- *                         type: string
- *                         example: Veg Burger
- *                       description:
- *                         type: string
- *                         example: Freshly prepared veg burger with cheese.
- *                       image:
- *                         type: string
- *                         example: https://res.cloudinary.com/demo/image/upload/burger.jpg
- *                       price:
- *                         type: number
- *                         example: 120
- *                       discountedPrice:
- *                         type: number
- *                         example: 99
- *                       preparationTime:
- *                         type: number
- *                         example: 15
- *                       isVeg:
- *                         type: boolean
- *                         example: true
- *                       isAvailable:
- *                         type: boolean
- *                         example: true
- *                       isPopular:
- *                         type: boolean
- *                         example: false
- *                       isRecommended:
- *                         type: boolean
- *                         example: true
- *                       stockQuantity:
- *                         type: number
- *                         example: 50
- *                       tags:
- *                         type: array
- *                         items:
- *                           type: string
- *                         example:
- *                           - burger
- *                           - fastfood
- *                       displayOrder:
- *                         type: number
- *                         example: 1
- *                       nutritionalInfo:
- *                         type: object
- *                         properties:
- *                           calories:
- *                             type: number
- *                             example: 320
- *                           protein:
- *                             type: number
- *                             example: 12
- *                           carbs:
- *                             type: number
- *                             example: 28
- *                           fat:
- *                             type: number
- *                             example: 15
- *                       createdAt:
- *                         type: string
- *                         format: date-time
- *                       updatedAt:
- *                         type: string
- *                         format: date-time
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Cafe not found
  */
 ownerRouter.get(
   "/cafes/my-cafe/menus",
@@ -575,8 +490,12 @@ ownerRouter.get(
  * @swagger
  * /owners/cafes/my-cafe/orders/{orderId}/status:
  *   patch:
- *     summary: Update order status
- *     description: Update the status of an order belonging to the logged-in owner's cafe.
+ *     summary: Update order status (generic)
+ *     description: >
+ *       Free-form status update belonging to the logged-in owner's cafe.
+ *       Prefer the dedicated accept/reject/preparing/ready/complete
+ *       endpoints below when possible — they carry their own
+ *       status-specific validation (e.g. rejection reason, pickup code).
  *     tags: [Owner]
  *     security:
  *       - cookieAuth: []
@@ -617,6 +536,194 @@ ownerRouter.patch(
   authenticate,
   authorize("cafe_owner"),
   updateOrderStatusController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/orders/{orderId}/accept:
+ *   patch:
+ *     summary: Accept a pending order
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               estimatedReadyTime:
+ *                 type: string
+ *                 format: date-time
+ *     responses:
+ *       200:
+ *         description: Order accepted successfully
+ *       400:
+ *         description: Order is not in a state that can be accepted
+ *       403:
+ *         description: Not your cafe's order, or cafe not approved/blocked
+ *       404:
+ *         description: Order not found
+ */
+ownerRouter.patch(
+  "/cafes/my-cafe/orders/:orderId/accept",
+  authenticate,
+  authorize("cafe_owner"),
+  acceptOrderController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/orders/{orderId}/reject:
+ *   patch:
+ *     summary: Reject a pending order
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       200:
+ *         description: Order rejected successfully
+ *       400:
+ *         description: Missing/invalid reason or order not in a rejectable state
+ *       403:
+ *         description: Not your cafe's order, or cafe not approved/blocked
+ *       404:
+ *         description: Order not found
+ */
+ownerRouter.patch(
+  "/cafes/my-cafe/orders/:orderId/reject",
+  authenticate,
+  authorize("cafe_owner"),
+  rejectOrderController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/orders/{orderId}/preparing:
+ *   patch:
+ *     summary: Mark an accepted order as preparing
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Order marked as preparing
+ *       400:
+ *         description: Order is not in a state that can move to preparing
+ *       403:
+ *         description: Not your cafe's order, or cafe not approved/blocked
+ *       404:
+ *         description: Order not found
+ */
+ownerRouter.patch(
+  "/cafes/my-cafe/orders/:orderId/preparing",
+  authenticate,
+  authorize("cafe_owner"),
+  markOrderPreparingController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/orders/{orderId}/ready:
+ *   patch:
+ *     summary: Mark a preparing order as ready
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Order marked as ready
+ *       400:
+ *         description: Order is not in a state that can move to ready
+ *       403:
+ *         description: Not your cafe's order, or cafe not approved/blocked
+ *       404:
+ *         description: Order not found
+ */
+ownerRouter.patch(
+  "/cafes/my-cafe/orders/:orderId/ready",
+  authenticate,
+  authorize("cafe_owner"),
+  markOrderReadyController,
+);
+
+/**
+ * @swagger
+ * /owners/cafes/my-cafe/orders/{orderId}/complete:
+ *   patch:
+ *     summary: Complete a ready pickup order using the pickup code
+ *     tags: [Owner]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - pickupCode
+ *             properties:
+ *               pickupCode:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Order completed successfully
+ *       400:
+ *         description: Invalid pickup code, wrong order type, or order not ready
+ *       403:
+ *         description: Not your cafe's order, or cafe not approved/blocked
+ *       404:
+ *         description: Order not found
+ */
+ownerRouter.patch(
+  "/cafes/my-cafe/orders/:orderId/complete",
+  authenticate,
+  authorize("cafe_owner"),
+  completePickupOrderController,
 );
 
 /**
