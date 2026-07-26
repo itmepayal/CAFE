@@ -9,6 +9,10 @@ import {
   saveCafeRepo,
   saveUserRepo,
   updateComplaintStatus,
+  findAllOrdersRepo,
+  findOrderByIdRepo,
+  saveOrderRepo,
+  getOrderStatsRepo,
 } from "./admin.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 
@@ -153,4 +157,71 @@ export const updateComplaintStatusService = async (
     assignedTo,
     adminId,
   );
+};
+
+// =========================================
+// GET ALL ORDERS
+// =========================================
+export const getAllOrdersService = async (
+  filters: any,
+  page: number,
+  limit: number,
+) => {
+  return findAllOrdersRepo(filters, page, limit);
+};
+
+// =========================================
+// GET ORDER BY ID
+// =========================================
+export const getOrderByIdService = async (orderId: string) => {
+  const order = await findOrderByIdRepo(orderId);
+  if (!order) throw new NotFoundError("Order not found");
+  return order;
+};
+
+// =========================================
+// FORCE CANCEL ORDER (any status)
+// =========================================
+export const forceCancelOrderService = async (
+  orderId: string,
+  reason: string,
+) => {
+  const order = await findOrderByIdRepo(orderId);
+  if (!order) throw new NotFoundError("Order not found");
+
+  if (["completed", "cancelled"].includes(order.status)) {
+    throw new BadRequestError(
+      `Order is already ${order.status}, cannot cancel.`,
+    );
+  }
+
+  order.status = "cancelled";
+  order.cancelledBy = "super_admin";
+  order.cancellationReason = reason || "Cancelled by admin";
+  order.cancelledAt = new Date();
+  order.isOpen = false;
+
+  return saveOrderRepo(order);
+};
+
+// =========================================
+// MARK ORDER REFUNDED
+// =========================================
+export const refundOrderService = async (orderId: string) => {
+  const order = await findOrderByIdRepo(orderId);
+  if (!order) throw new NotFoundError("Order not found");
+
+  if (order.paymentStatus !== "paid") {
+    throw new BadRequestError("Only paid orders can be refunded.");
+  }
+
+  order.paymentStatus = "refunded";
+  return saveOrderRepo(order);
+};
+
+// =========================================
+// ORDER STATS
+// =========================================
+export const getOrderStatsService = async () => {
+  return getOrderStatsRepo();
 };

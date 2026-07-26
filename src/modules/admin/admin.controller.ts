@@ -9,6 +9,11 @@ import {
   updateComplaintStatusService,
   getComplaintByIdService,
   getAllComplaintsService,
+  getAllOrdersService,
+  getOrderByIdService,
+  forceCancelOrderService,
+  refundOrderService,
+  getOrderStatsService,
 } from "./admin.service";
 import mongoose from "mongoose";
 import { cancelSpecificStaleOrderService } from "../owner/owner.service";
@@ -230,6 +235,151 @@ export const triggerSpecificOrderCancelController = async (
     res.status(200).json({
       success: true,
       message: `Order ${orderId} cancelled successfully`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * GET ALL ORDERS
+ * =========================================
+ */
+export const getAllOrdersController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const {
+      status,
+      paymentStatus,
+      orderType,
+      cafeId,
+      studentId,
+      dateFrom,
+      dateTo,
+    } = req.query;
+
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+
+    const result = await getAllOrdersService(
+      {
+        status: status as string | undefined,
+        paymentStatus: paymentStatus as string | undefined,
+        orderType: orderType as string | undefined,
+        cafeId: cafeId as string | undefined,
+        studentId: studentId as string | undefined,
+        dateFrom: dateFrom as string | undefined,
+        dateTo: dateTo as string | undefined,
+      },
+      page,
+      limit,
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result.orders,
+      pagination: {
+        total: result.total,
+        page,
+        limit,
+        totalPages: Math.ceil(result.total / limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * GET SINGLE ORDER
+ * =========================================
+ */
+export const getOrderByIdController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const order = await getOrderByIdService(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * FORCE CANCEL ORDER
+ * =========================================
+ */
+export const forceCancelOrderController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { reason } = req.body;
+
+    const order = await forceCancelOrderService(req.params.id, reason);
+
+    res.status(200).json({
+      success: true,
+      message: "Order cancelled by admin",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * REFUND ORDER
+ * =========================================
+ */
+export const refundOrderController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const order = await refundOrderService(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: "Order marked as refunded",
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * GET ORDER STATS
+ * =========================================
+ */
+export const getOrderStatsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const stats = await getOrderStatsService();
+
+    res.status(200).json({
+      success: true,
+      data: stats,
     });
   } catch (error) {
     next(error);

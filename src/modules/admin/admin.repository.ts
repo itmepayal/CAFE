@@ -6,6 +6,7 @@ import {
   NotFoundError,
 } from "../../utils/errors/app.error";
 import Complaint, { IComplaint } from "../../models/complaint";
+import Order from "../../models/order";
 
 /**
  * =========================================================
@@ -155,4 +156,89 @@ export const updateComplaintStatus = async (
   }
 
   return await Complaint.findByIdAndUpdate(id, { $set: update }, { new: true });
+};
+
+// =========================================
+// GET ALL ORDERS
+// =========================================
+export const findAllOrdersRepo = async (
+  filters: {
+    status?: string;
+    paymentStatus?: string;
+    orderType?: string;
+    cafeId?: string;
+    studentId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  },
+  page: number,
+  limit: number,
+) => {
+  const query: Record<string, any> = {};
+
+  if (filters.status) query.status = filters.status;
+  if (filters.paymentStatus) query.paymentStatus = filters.paymentStatus;
+  if (filters.orderType) query.orderType = filters.orderType;
+  if (filters.cafeId) query.cafeId = filters.cafeId;
+  if (filters.studentId) query.studentId = filters.studentId;
+
+  if (filters.dateFrom || filters.dateTo) {
+    query.createdAt = {};
+    if (filters.dateFrom) query.createdAt.$gte = new Date(filters.dateFrom);
+    if (filters.dateTo) query.createdAt.$lte = new Date(filters.dateTo);
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [orders, total] = await Promise.all([
+    Order.find(query)
+      .populate("studentId", "name email")
+      .populate("cafeId", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments(query),
+  ]);
+
+  return { orders, total };
+};
+
+// =========================================
+// GET ORDER BY ID
+// =========================================
+export const findOrderByIdRepo = async (orderId: string) => {
+  return Order.findById(orderId)
+    .populate("studentId", "name email phone")
+    .populate("cafeId", "name")
+    .populate("deliveryPersonId", "name phone");
+};
+
+// =========================================
+// SAVE ORDER
+// =========================================
+export const saveOrderRepo = async (order: any) => {
+  return order.save();
+};
+
+// =========================================
+// GET ORDER BY STATS
+// =========================================
+export const getOrderStatsRepo = async () => {
+  const [statusCounts, revenueAgg, todayCount] = await Promise.all([
+    Order.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+    Order.aggregate([
+      { $match: { paymentStatus: "paid" } },
+      { $group: { _id: null, totalRevenue: { $sum: "$totalAmount" } } },
+    ]),
+    Order.countDocuments({
+      createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+    }),
+  ]);
+
+  return {
+    statusCounts,
+    totalRevenue: revenueAgg[0]?.totalRevenue || 0,
+    todayOrders: todayCount,
+    totalOrders: await Order.countDocuments(),
+  };
 };

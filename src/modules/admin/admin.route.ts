@@ -9,6 +9,11 @@ import {
   getAllComplaintsController,
   getPendingCafesController,
   triggerSpecificOrderCancelController,
+  getAllOrdersController,
+  getOrderByIdController,
+  forceCancelOrderController,
+  refundOrderController,
+  getOrderStatsController,
 } from "./admin.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
@@ -441,6 +446,218 @@ adminRouter.post(
   authenticate,
   authorize("super_admin"),
   triggerSpecificOrderCancelController,
+);
+
+/**
+ * @swagger
+ * /admin/orders/stats:
+ *   get:
+ *     summary: Get order statistics
+ *     description: Returns status-wise order counts, total revenue, today's order count, and total orders. Restricted to super_admin.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Order stats fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied. Super admin only.
+ */
+adminRouter.get(
+  "/orders/stats",
+  authenticate,
+  authorize("super_admin"),
+  getOrderStatsController,
+);
+
+/**
+ * @swagger
+ * /admin/orders:
+ *   get:
+ *     summary: Get all orders
+ *     description: Super Admin can view all orders with optional filters and pagination.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: paymentStatus
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: orderType
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - pickup
+ *             - delivery
+ *       - in: query
+ *         name: cafeId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: studentId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Orders fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+adminRouter.get(
+  "/orders",
+  authenticate,
+  authorize("super_admin"),
+  getAllOrdersController,
+);
+
+/**
+ * @swagger
+ * /admin/orders/{id}:
+ *   get:
+ *     summary: Get single order by ID
+ *     description: Super Admin can view full details of a single order, including student, cafe, and delivery person info.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Order fetched successfully
+ *       404:
+ *         description: Order not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+adminRouter.get(
+  "/orders/:id",
+  authenticate,
+  authorize("super_admin"),
+  getOrderByIdController,
+);
+
+/**
+ * @swagger
+ * /admin/orders/{id}/force-cancel:
+ *   patch:
+ *     summary: Force cancel an order
+ *     description: Super Admin can cancel any order regardless of current status (except already completed/cancelled).
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: Cancelled due to customer complaint
+ *     responses:
+ *       200:
+ *         description: Order cancelled successfully
+ *       400:
+ *         description: Order already completed or cancelled
+ *       404:
+ *         description: Order not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+adminRouter.patch(
+  "/orders/:id/force-cancel",
+  authenticate,
+  authorize("super_admin"),
+  forceCancelOrderController,
+);
+
+/**
+ * @swagger
+ * /admin/orders/{id}/refund:
+ *   patch:
+ *     summary: Mark order as refunded
+ *     description: Super Admin can mark a paid order's payment status as refunded (used when resolving complaints).
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Order marked as refunded
+ *       400:
+ *         description: Only paid orders can be refunded
+ *       404:
+ *         description: Order not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+adminRouter.patch(
+  "/orders/:id/refund",
+  authenticate,
+  authorize("super_admin"),
+  refundOrderController,
 );
 
 export default adminRouter;
