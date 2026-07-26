@@ -7,10 +7,16 @@ import {
   rateOrderController,
 } from "./order.controller";
 
-import { authenticate } from "../../middlewares/auth.middleware";
-import { authorize } from "../../middlewares/auth.middleware";
+import { authenticate, authorize } from "../../middlewares/auth.middleware";
 
 const orderRouter = Router();
+
+/**
+ * @swagger
+ * tags:
+ *   name: Orders
+ *   description: Student order management APIs
+ */
 
 /**
  * @swagger
@@ -29,6 +35,7 @@ const orderRouter = Router();
  *             required:
  *               - cafeId
  *               - items
+ *               - paymentMethod
  *             properties:
  *               cafeId:
  *                 type: string
@@ -36,11 +43,24 @@ const orderRouter = Router();
  *                 type: array
  *                 items:
  *                   type: object
+ *                   properties:
+ *                     menuItemId:
+ *                       type: string
+ *                     quantity:
+ *                       type: integer
+ *                     specialInstructions:
+ *                       type: string
  *               paymentMethod:
  *                 type: string
- *                 example: online
+ *                 example: upi
+ *               orderType:
+ *                 type: string
+ *                 enum: [pickup, delivery]
+ *                 default: pickup
  *               notes:
  *                 type: string
+ *               deliveryAddress:
+ *                 type: object
  *     responses:
  *       201:
  *         description: Order created successfully
@@ -115,7 +135,7 @@ orderRouter.post(
  * @swagger
  * /orders/{orderId}/cancellation:
  *   patch:
- *     summary: Cancel order
+ *     summary: Cancel an order
  *     tags: [Orders]
  *     security:
  *       - cookieAuth: []
@@ -126,15 +146,17 @@ orderRouter.post(
  *         schema:
  *           type: string
  *     requestBody:
- *       required: false
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - reason
  *             properties:
  *               reason:
  *                 type: string
- *                 example: Customer requested cancellation
+ *                 example: Ordered by mistake
  *     responses:
  *       200:
  *         description: Order cancelled successfully

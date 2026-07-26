@@ -1,18 +1,11 @@
 import { getIO } from "./socket";
 import logger from "../config/logger.config";
-
-export type OrderStatus =
-  | "pending"
-  | "accepted"
-  | "rejected"
-  | "preparing"
-  | "ready"
-  | "completed"
-  | "cancelled";
+import { OrderStatus, DeliveryStatus } from "../modules/order/order.constant";
 
 export interface OrderStatusPayload {
   orderId: string;
   status: OrderStatus;
+  deliveryStatus?: DeliveryStatus;
   estimatedReadyTime?: Date | null;
   message: string;
 }
@@ -25,7 +18,7 @@ export interface OrderReadyPayload {
 export interface OrderCancelledPayload {
   orderId: string;
   reason: string;
-  cancelledBy: "student" | "cafe" | "admin";
+  cancelledBy: "student" | "cafe_owner" | "super_admin";
 }
 
 /**

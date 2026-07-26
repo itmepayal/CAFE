@@ -1,5 +1,5 @@
 import { IOrder } from "../models/order";
-import { OrderStatus } from "../socket/order";
+import { OrderStatus } from "../modules/order/order.constant";
 
 export const ORDER_STATUS_TRANSITIONS: Record<
   IOrder["status"],
@@ -12,16 +12,7 @@ export const ORDER_STATUS_TRANSITIONS: Record<
   ready: ["completed"],
   completed: [],
   cancelled: [],
-};
-
-export const STATUS_MESSAGES: Record<OrderStatus, string> = {
-  pending: "Order place ho gaya, cafe ka wait karo ⏳",
-  accepted: "Cafe ne tumhara order accept kar liya! 🎉",
-  rejected: "Cafe ne order reject kar diya.",
-  preparing: "Tumhara khana ban raha hai... 👨‍🍳",
-  ready: "Order ready hai! Pickup karo 🔔",
-  completed: "Order complete! Enjoy your meal 😊",
-  cancelled: "Tumhara order cancel ho gaya.",
+  out_for_delivery: [],
 };
 
 export const CANCELLABLE_STATUSES: OrderStatus[] = ["pending", "accepted"];

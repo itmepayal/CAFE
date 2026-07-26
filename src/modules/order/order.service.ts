@@ -10,7 +10,6 @@ import {
   emitStatusUpdate,
   emitOrderCancelled,
   emitAdminOrderEvent,
-  OrderStatus,
 } from "../../socket/order";
 import { IOrder, IOrderItem } from "../../models/order";
 import logger from "../../config/logger.config";
@@ -19,16 +18,28 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../utils/errors/app.error";
-import { CANCELLABLE_STATUSES, STATUS_MESSAGES } from "../../constants";
+import {
+  CANCELLABLE_STATUSES,
+  STATUS_MESSAGES,
+  PAYMENT_METHODS,
+  ORDER_TYPES,
+  OrderStatus,
+} from "./order.constant";
 import {
   CancelOrderInput,
   CreateOrderInput,
-  PAYMENT_METHODS,
   RateOrderInput,
 } from "./order.type";
 import { findCafeById } from "../cafes/cafe.repository";
 import { findMenuItemByIdRepo } from "../menu/menu.repository";
 
+const DEFAULT_DELIVERY_CHARGE = 20;
+
+/**
+ * =========================================================
+ * CREATED ORDERS BY STUDENT
+ * =========================================================
+ */
 export const createOrderService = async (
   input: CreateOrderInput,
 ): Promise<IOrder> => {
@@ -40,6 +51,8 @@ export const createOrderService = async (
     notes = "",
     taxRate = 0.05,
     discountAmount = 0,
+    orderType = "pickup",
+    deliveryAddress,
   } = input;
 
   if (!items || items.length === 0) {
@@ -52,6 +65,24 @@ export const createOrderService = async (
     throw new BadRequestError(
       `Invalid payment method. Allowed: ${PAYMENT_METHODS.join(", ")}`,
     );
+  }
+
+  if (!ORDER_TYPES.includes(orderType as (typeof ORDER_TYPES)[number])) {
+    throw new BadRequestError(
+      `Invalid order type. Allowed: ${ORDER_TYPES.join(", ")}`,
+    );
+  }
+
+  if (orderType === "delivery") {
+    if (
+      !deliveryAddress ||
+      !deliveryAddress.fullAddress?.trim() ||
+      !deliveryAddress.contactNumber?.trim()
+    ) {
+      throw new BadRequestError(
+        "Delivery address is required for delivery orders.",
+      );
+    }
   }
 
   for (const item of items) {
@@ -78,6 +109,10 @@ export const createOrderService = async (
     throw new BadRequestError("This cafe is currently closed.");
   }
 
+  if (orderType === "delivery" && !cafe.supportsDelivery) {
+    throw new BadRequestError("This cafe does not offer delivery.");
+  }
+
   const menuItems = await Promise.all(
     items.map((item) => findMenuItemByIdRepo(item.menuItemId)),
   );
@@ -101,7 +136,7 @@ export const createOrderService = async (
     }
 
     if (!menuItem.isAvailable) {
-      throw new BadRequestError(`"${menuItem.name}" abhi available nahi hai`);
+      throw new BadRequestError(`"${menuItem.name}" not available`);
     }
 
     const effectivePrice =
@@ -128,15 +163,18 @@ export const createOrderService = async (
     enrichedItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2),
   );
   const taxAmount = parseFloat((subtotal * taxRate).toFixed(2));
-  const totalAmount = parseFloat(
-    (subtotal + taxAmount - discountAmount).toFixed(2),
-  );
+
+  const deliveryCharge = orderType == "delivery" ? DEFAULT_DELIVERY_CHARGE : 0;
 
   if (discountAmount > subtotal) {
     throw new BadRequestError(
       "The discount amount cannot exceed the order subtotal.",
     );
   }
+
+  const totalAmount = parseFloat(
+    (subtotal + taxAmount + deliveryCharge - discountAmount).toFixed(2),
+  );
 
   if (totalAmount < 0) {
     throw new BadRequestError("The total order amount cannot be negative.");
@@ -149,11 +187,19 @@ export const createOrderService = async (
     subtotal,
     taxAmount,
     discountAmount,
+    deliveryCharge,
     totalAmount,
     paymentMethod: paymentMethod as IOrder["paymentMethod"],
     notes,
     paymentStatus: "pending",
     status: "pending",
+    orderType: orderType as IOrder["orderType"],
+    ...(orderType === "delivery"
+      ? {
+          deliveryAddress,
+          deliveryStatus: "not_assigned",
+        }
+      : {}),
     statusHistory: [{ status: "pending", changedAt: new Date() }],
   });
 
@@ -162,16 +208,23 @@ export const createOrderService = async (
     orderNumber: order.orderNumber,
     studentId,
     cafeId,
+    orderType,
     totalAmount,
   });
 
   emitNewOrderToCafe(cafeId, {
     orderId: order._id,
     orderNumber: order.orderNumber,
+    studentId: order.studentId,
+    studentName: (order.studentId as any)?.name,
+    studentContact: (order.studentId as any)?.phone,
     items: order.items,
     totalAmount: order.totalAmount,
     notes: order.notes,
-    pickupCode: order.pickupCode,
+    orderType: order.orderType,
+    pickupCode: order.orderType === "pickup" ? order.pickupCode : undefined,
+    deliveryAddress:
+      order.orderType === "delivery" ? order.deliveryAddress : undefined,
     createdAt: order.createdAt,
   });
 
@@ -180,6 +233,7 @@ export const createOrderService = async (
     orderNumber: order.orderNumber,
     cafeId,
     studentId,
+    orderType,
     totalAmount,
   });
 
@@ -195,6 +249,96 @@ export const getStudentOrdersService = async (
   studentId: string,
 ): Promise<IOrder[]> => {
   return await findOrdersByStudentRepo(studentId);
+};
+
+/**
+ * =========================================================
+ * ASSIGN / UPDATE DELIVERY
+ * =========================================================
+ */
+export const updateDeliveryStatusService = async (
+  orderId: string,
+  cafeId: string,
+  deliveryStatus: NonNullable<IOrder["deliveryStatus"]>,
+  deliveryPersonId?: string,
+): Promise<IOrder> => {
+  const order = await findOrderByIdRepo(orderId);
+
+  if (!order) {
+    throw new NotFoundError("Order not found.");
+  }
+
+  if (order.cafeId.toString() !== cafeId) {
+    throw new ForbiddenError("You can only manage your own cafe's orders.");
+  }
+
+  if (order.orderType !== "delivery") {
+    throw new BadRequestError("This order is not a delivery order.");
+  }
+
+  if (order.status === "cancelled" || order.status === "rejected") {
+    throw new BadRequestError(
+      `Cannot update delivery status. This order has already been ${order.status}.`,
+    );
+  }
+
+  const allowedTransitions: Record<string, string[]> = {
+    not_assigned: ["assigned"],
+    assigned: ["out_for_delivery"],
+    out_for_delivery: ["delivered"],
+    delivered: [],
+  };
+
+  const currentStatus = order.deliveryStatus ?? "not_assigned";
+
+  if (!allowedTransitions[currentStatus]?.includes(deliveryStatus)) {
+    throw new BadRequestError(
+      `Cannot move delivery status from '${currentStatus}' to '${deliveryStatus}'.`,
+    );
+  }
+
+  if (deliveryStatus === "assigned" && !deliveryPersonId) {
+    throw new BadRequestError(
+      "deliveryPersonId is required when assigning a delivery order.",
+    );
+  }
+
+  const update: Partial<IOrder> = {
+    deliveryStatus,
+    ...(deliveryPersonId ? { deliveryPersonId: deliveryPersonId as any } : {}),
+    ...(deliveryStatus === "out_for_delivery"
+      ? { status: "out_for_delivery", outForDeliveryAt: new Date() }
+      : {}),
+    ...(deliveryStatus === "delivered"
+      ? { status: "completed", completedAt: new Date() }
+      : {}),
+  };
+
+  const updatedOrder = await updateOrderStatusRepo(
+    orderId,
+    (update.status ?? order.status) as OrderStatus,
+    update as any,
+  );
+
+  logger.info("Delivery status updated", {
+    orderId,
+    deliveryStatus,
+    deliveryPersonId,
+  });
+
+  emitStatusUpdate(order.studentId.toString(), {
+    orderId,
+    status: update.status ?? order.status,
+    deliveryStatus,
+    message:
+      deliveryStatus === "out_for_delivery"
+        ? "Your order is out for delivery"
+        : deliveryStatus === "delivered"
+          ? "Your order has been delivered"
+          : "Your delivery has been assigned",
+  });
+
+  return updatedOrder;
 };
 
 /**
@@ -227,6 +371,15 @@ export const cancelOrderService = async (
     );
   }
 
+  const minutesSinceOrder =
+    (Date.now() - new Date(order.createdAt).getTime()) / (60 * 1000);
+
+  if (minutesSinceOrder > 10) {
+    throw new BadRequestError(
+      "Cancellation window has expired. Orders can only be cancelled within 10 minutes of placing them.",
+    );
+  }
+
   const cancellationReason = reason.trim();
 
   if (!cancellationReason) {
@@ -239,17 +392,21 @@ export const cancelOrderService = async (
     );
   }
 
+  const shouldRefund = order.paymentStatus === "paid";
+
   const cancelledOrder = await cancelOrderRepo(
     orderId,
     "student",
     cancellationReason,
+    shouldRefund,
   );
 
-  logger.info("Order cancelled", {
+  logger.info("Order cancelled by student", {
     orderId,
     cancelledBy: "student",
     reason: cancellationReason,
     previousStatus: order.status,
+    refunded: shouldRefund,
   });
 
   emitOrderCancelled(studentId, {
@@ -261,7 +418,9 @@ export const cancelOrderService = async (
   emitStatusUpdate(studentId, {
     orderId,
     status: "cancelled",
-    message: STATUS_MESSAGES.cancelled,
+    message: shouldRefund
+      ? "Your order has been cancelled. Refund will be processed shortly."
+      : STATUS_MESSAGES.cancelled,
   });
 
   emitAdminOrderEvent("admin:order:cancelled", {

@@ -18,10 +18,19 @@ export const createOrderController = async (
   next: NextFunction,
 ) => {
   try {
-    const sID = req?.user?.id as string;
+    const studentId = req?.user?.id as string;
+
+    const { cafeId, items, paymentMethod, notes, orderType, deliveryAddress } =
+      req.body;
+
     const order = await createOrderService({
-      studentId: sID,
-      ...req.body,
+      studentId,
+      cafeId,
+      items,
+      paymentMethod,
+      notes,
+      orderType,
+      deliveryAddress,
     });
 
     res.status(201).json({
@@ -45,8 +54,10 @@ export const getMyOrdersController = async (
   next: NextFunction,
 ) => {
   try {
-    const sID = req?.user?.id as string;
-    const orders = await getStudentOrdersService(sID);
+    const studentId = req?.user?.id as string;
+
+    const orders = await getStudentOrdersService(studentId);
+
     res.status(200).json({
       success: true,
       data: orders,
@@ -67,13 +78,11 @@ export const cancelOrderController = async (
   next: NextFunction,
 ) => {
   try {
-    const sID = req?.user?.id as string;
-
-    console.log(req.user);
+    const studentId = req?.user?.id as string;
 
     const order = await cancelOrderService({
       orderId: req.params.orderId,
-      studentId: sID,
+      studentId,
       reason: req.body.reason,
     });
 
@@ -98,10 +107,11 @@ export const rateOrderController = async (
   next: NextFunction,
 ) => {
   try {
-    const sID = req?.user?.id as string;
+    const studentId = req?.user?.id as string;
+
     const order = await rateOrderService({
       orderId: req.params.orderId,
-      studentId: sID,
+      studentId,
       stars: req.body.stars,
       review: req.body.review,
     });

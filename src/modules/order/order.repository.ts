@@ -200,27 +200,36 @@ export const cancelOrderRepo = async (
   orderId: string,
   cancelledBy: "student" | "cafe_owner" | "super_admin",
   reason: string,
+  shouldRefund: boolean = false,
 ): Promise<IOrder> => {
   try {
-    const order = await Order.findByIdAndUpdate(
-      orderId,
-      {
-        status: "cancelled",
-        cancelledBy,
-        cancellationReason: reason,
-        cancelledAt: new Date(),
-        $push: {
-          statusHistory: {
-            status: "cancelled",
-            changedAt: new Date(),
-          },
+    const existingOrder = await Order.findById(orderId);
+
+    if (!existingOrder) {
+      throw new NotFoundError("Order not found");
+    }
+
+    const update: any = {
+      status: "cancelled",
+      cancelledBy,
+      cancellationReason: reason,
+      cancelledAt: new Date(),
+      $push: {
+        statusHistory: {
+          status: "cancelled",
+          changedAt: new Date(),
         },
       },
-      {
-        new: true,
-        runValidators: true,
-      },
-    );
+    };
+
+    if (existingOrder.paymentStatus === "paid" && shouldRefund) {
+      update.paymentStatus = "refunded";
+    }
+
+    const order = await Order.findByIdAndUpdate(orderId, update, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!order) {
       throw new NotFoundError("Order not found");
@@ -235,6 +244,7 @@ export const cancelOrderRepo = async (
     logger.error("Failed to cancel order", {
       orderId,
       cancelledBy,
+      shouldRefund,
       error,
     });
 
