@@ -48,6 +48,7 @@ export interface ICafe extends Document {
   isOpen: boolean;
   isBlocked: boolean;
   isFeatured: boolean;
+  supportsDelivery: boolean;
 
   status: "pending" | "approved" | "rejected";
 
@@ -223,6 +224,12 @@ const cafeSchema = new Schema<ICafe>(
     isFeatured: {
       type: Boolean,
       default: false,
+    },
+
+    supportsDelivery: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
 
     status: {

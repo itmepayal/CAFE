@@ -3,6 +3,7 @@ import {
   registerCafeService,
   getApprovedCafesService,
   getCafeByIdService,
+  getMyCafeService,
 } from "./cafe.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
@@ -77,6 +78,8 @@ export const registerCafeController = async (
         : "",
     };
 
+    const supportsDelivery = req.body.supportsDelivery === "true";
+
     const payload = {
       cafeName: req.body.cafeName,
       ownerName: req.body.ownerName,
@@ -93,6 +96,8 @@ export const registerCafeController = async (
 
       documents,
       bankDetails,
+
+      supportsDelivery,
     };
 
     const cafe = await registerCafeService(userId, payload);
@@ -131,6 +136,28 @@ export const getApprovedCafesController = async (
         limit: result.limit,
         totalPages: Math.ceil(result.total / result.limit),
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// GET MY CAFE
+// =========================================
+export const getMyCafeController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user?.id as string;
+
+    const cafe = await getMyCafeService(userId);
+
+    res.json({
+      success: true,
+      data: cafe,
     });
   } catch (error) {
     next(error);

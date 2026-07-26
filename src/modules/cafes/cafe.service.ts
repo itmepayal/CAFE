@@ -6,6 +6,7 @@ import {
 } from "./cafe.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
+import User from "../../models/user";
 
 // =========================================
 // REGISTER CAFE
@@ -27,9 +28,24 @@ export const registerCafeService = async (userId: string, payload: any) => {
     isBlocked: false,
     isOpen: false,
     isFeatured: false,
+    supportsDelivery: payload.supportsDelivery ?? false,
   });
 
-  logger.info(`Cafe registered with id: ${cafe?._id}`);
+  await User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        role: "cafe_owner",
+      },
+    },
+    {
+      new: true,
+    },
+  );
+
+  logger.info(
+    `Cafe registered with id: ${cafe?._id}, user role updated to cafe_owner`,
+  );
 
   return cafe;
 };
@@ -63,6 +79,37 @@ export const getCafeByIdService = async (id: string) => {
   if (!cafe) {
     logger.warn(`Cafe not found: ${id}`);
     throw new NotFoundError("Cafe not found");
+  }
+
+  return cafe;
+};
+
+// =========================================
+// GET MY CAFE
+// =========================================
+export const getMyCafeService = async (userId: string) => {
+  logger.info(`Fetching own cafe for user ${userId}`);
+
+  const cafe = await findCafeByUserId(userId);
+
+  if (!cafe) {
+    throw new NotFoundError("No cafe registered for this user");
+  }
+
+  if (cafe.status === "pending") {
+    return {
+      status: "pending",
+      message:
+        "Your cafe registration is under review. You'll be notified once approved.",
+    };
+  }
+
+  if (cafe.status === "rejected") {
+    return {
+      status: "rejected",
+      message: "Your cafe registration was rejected.",
+      adminNote: cafe.adminNote,
+    };
   }
 
   return cafe;

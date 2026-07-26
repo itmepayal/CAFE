@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   registerCafeController,
   getApprovedCafesController,
+  getMyCafeController,
   getCafeByIdController,
 } from "./cafe.controller";
 
@@ -31,12 +32,10 @@ const cafeRouter = Router();
  *         name: search
  *         schema:
  *           type: string
- *         description: Search cafe by name
  *       - in: query
  *         name: city
  *         schema:
  *           type: string
- *         description: Filter cafes by city
  *       - in: query
  *         name: page
  *         schema:
@@ -105,6 +104,9 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *                 type: number
  *               longitude:
  *                 type: number
+ *               supportsDelivery:
+ *                 type: boolean
+ *                 default: false
  *               aadharNumber:
  *                 type: string
  *               panNumber:
@@ -162,6 +164,20 @@ cafeRouter.post(
   validate(registerCafeSchema),
   registerCafeController,
 );
+
+/**
+ * @swagger
+ * /cafes/my-cafe:
+ *   get:
+ *     summary: Get logged-in user's own cafe (with registration status)
+ *     tags: [Cafe]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Own cafe fetched successfully
+ */
+cafeRouter.get("/my-cafe", authenticate, getMyCafeController);
 
 /**
  * @swagger
