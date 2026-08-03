@@ -70,6 +70,10 @@ export interface ICafe extends Document {
 
   isApproved: boolean;
 
+  cashfreeVendorId: string | null;
+
+  vendorStatus: "not_onboarded" | "pending" | "active" | "rejected";
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -209,6 +213,19 @@ const cafeSchema = new Schema<ICafe>(
         type: String,
         default: "",
       },
+    },
+
+    cashfreeVendorId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+
+    vendorStatus: {
+      type: String,
+      enum: ["not_onboarded", "pending", "active", "rejected"],
+      default: "not_onboarded",
+      index: true,
     },
 
     isOpen: {

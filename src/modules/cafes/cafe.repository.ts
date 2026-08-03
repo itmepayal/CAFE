@@ -54,3 +54,12 @@ export const findCafeByUserId = async (
 ): Promise<ICafe | null> => {
   return await Cafe.findOne({ userId });
 };
+
+// =========================================
+// UPDATE CAFE
+// =========================================
+export const updatedCafe = async (cafeId: string, payload: any) => {
+  return await Cafe.findByIdAndUpdate(cafeId, payload, {
+    new: true,
+  });
+};

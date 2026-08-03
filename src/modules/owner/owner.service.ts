@@ -108,12 +108,12 @@ const getOwnedOrderForApprovedCafe = async (
     throw new NotFoundError("Order not found");
   }
 
-  if (order.cafeId.toString() !== cafe._id.toString()) {
+  if (order.cafeId._id.toString() !== cafe._id.toString()) {
     logger.warn("Unauthorized order access attempt", {
       userId,
       cafeId: cafe._id,
       orderId,
-      orderCafeId: order.cafeId,
+      orderCafeId: order.cafeId._id,
     });
     throw new ForbiddenError("You can only manage your own cafe's orders");
   }
@@ -786,6 +786,8 @@ export const acceptOrderService = async (
   estimatedReadyTime?: Date,
 ): Promise<IOrder> => {
   const { order } = await getOwnedOrderForApprovedCafe(orderId, userId);
+
+  console.log(order);
 
   const updatedOrder = await transitionOrderStatus(order, "accepted", {
     ...(estimatedReadyTime ? { estimatedReadyTime } : {}),

@@ -1,4 +1,23 @@
-import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Document, Model, Schema } from "mongoose";
+
+export type PaymentProvider = "cashfree";
+
+export type PaymentMethod =
+  | "upi"
+  | "card"
+  | "netbanking"
+  | "wallet"
+  | "emi"
+  | "cash";
+
+export type PaymentStatus =
+  | "pending"
+  | "processing"
+  | "success"
+  | "failed"
+  | "cancelled"
+  | "refunded"
+  | "partially_refunded";
 
 export interface IPayment extends Document {
   orderId: mongoose.Types.ObjectId;
@@ -7,36 +26,32 @@ export interface IPayment extends Document {
   amount: number;
   currency: string;
 
-  provider: "upi" | "razorpay" | "stripe";
+  provider: PaymentProvider;
 
-  gatewayOrderId: string;
-  transactionId: string;
-  paymentSignature: string;
+  cashfreeOrderId: string;
+  cashfreePaymentId: string;
+  paymentSessionId: string;
 
-  paymentMethod: "upi" | "card" | "netbanking" | "wallet" | "cash";
-
-  status:
-    | "pending"
-    | "processing"
-    | "success"
-    | "failed"
-    | "cancelled"
-    | "refunded"
-    | "partially_refunded";
+  paymentMethod: PaymentMethod;
+  status: PaymentStatus;
 
   refundAmount: number;
   refundReason: string;
   refundedAt: Date | null;
+  cashfreeRefundId: string;
 
   failureCode: string;
   failureReason: string;
 
-  isVerified: boolean;
-  verifiedAt: Date | null;
-
-  gatewayResponse: Record<string, any>;
+  isWebhookVerified: boolean;
+  webhookEventId: string;
+  lastWebhookAt: Date | null;
+  webhookAttempts: number;
 
   paidAt: Date | null;
+  expiresAt: Date | null;
+
+  gatewayResponse: Record<string, any>;
 
   createdAt: Date;
   updatedAt: Date;
@@ -68,35 +83,38 @@ const paymentSchema = new Schema<IPayment>(
       type: String,
       default: "INR",
       uppercase: true,
+      trim: true,
     },
 
     provider: {
       type: String,
-      enum: ["upi", "razorpay", "stripe"],
-      default: "razorpay",
+      enum: ["cashfree"],
+      default: "cashfree",
       index: true,
     },
 
-    gatewayOrderId: {
+    cashfreeOrderId: {
+      type: String,
+      default: "",
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+
+    cashfreePaymentId: {
       type: String,
       default: "",
       index: true,
     },
 
-    transactionId: {
-      type: String,
-      default: "",
-      index: true,
-    },
-
-    paymentSignature: {
+    paymentSessionId: {
       type: String,
       default: "",
     },
 
     paymentMethod: {
       type: String,
-      enum: ["upi", "card", "netbanking", "wallet", "cash"],
+      enum: ["upi", "card", "netbanking", "wallet", "emi", "cash"],
       default: "upi",
     },
 
@@ -131,6 +149,12 @@ const paymentSchema = new Schema<IPayment>(
       default: null,
     },
 
+    cashfreeRefundId: {
+      type: String,
+      default: "",
+      index: true,
+    },
+
     failureCode: {
       type: String,
       default: "",
@@ -141,12 +165,35 @@ const paymentSchema = new Schema<IPayment>(
       default: "",
     },
 
-    isVerified: {
+    isWebhookVerified: {
       type: Boolean,
       default: false,
+      index: true,
     },
 
-    verifiedAt: {
+    webhookEventId: {
+      type: String,
+      default: "",
+      index: true,
+    },
+
+    lastWebhookAt: {
+      type: Date,
+      default: null,
+    },
+
+    webhookAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+
+    expiresAt: {
       type: Date,
       default: null,
     },
@@ -155,11 +202,6 @@ const paymentSchema = new Schema<IPayment>(
       type: Schema.Types.Mixed,
       default: {},
     },
-
-    paidAt: {
-      type: Date,
-      default: null,
-    },
   },
   {
     timestamps: true,
@@ -167,11 +209,14 @@ const paymentSchema = new Schema<IPayment>(
   },
 );
 
-paymentSchema.index({ orderId: 1 });
-paymentSchema.index({ userId: 1 });
-paymentSchema.index({ transactionId: 1 });
+// =========================
+// INDEXES
+// =========================
+paymentSchema.index({ orderId: 1, status: 1 });
+paymentSchema.index({ userId: 1, createdAt: -1 });
 paymentSchema.index({ status: 1 });
 paymentSchema.index({ provider: 1 });
+paymentSchema.index({ webhookEventId: 1 }, { sparse: true });
 
 const Payment: Model<IPayment> =
   mongoose.models.Payment || mongoose.model<IPayment>("Payment", paymentSchema);

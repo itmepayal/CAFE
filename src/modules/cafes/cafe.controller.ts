@@ -4,6 +4,7 @@ import {
   getApprovedCafesService,
   getCafeByIdService,
   getMyCafeService,
+  onboardCafeVendorService,
 } from "./cafe.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
@@ -178,6 +179,29 @@ export const getCafeByIdController = async (
     res.json({
       success: true,
       data: cafe,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// ONBOARD CAFE VENDOR
+// =========================================
+export const onboardVendorController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const cafeId = req.params.cafeId;
+
+    const result = await onboardCafeVendorService(cafeId, req.body);
+
+    res.status(200).json({
+      success: true,
+      message: "Cafe onboarded for payouts successfully",
+      data: result,
     });
   } catch (error) {
     next(error);

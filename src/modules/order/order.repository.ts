@@ -251,3 +251,23 @@ export const cancelOrderRepo = async (
     throw new InternalServerError("Failed to cancel order");
   }
 };
+
+export const findOrderByOrderNumberForPaymentRepo = async (
+  orderNumber: string,
+): Promise<IOrder | null> => {
+  try {
+    const order = await Order.findOne({ orderNumber }).populate(
+      "studentId",
+      "name email profileImage",
+    );
+
+    return order;
+  } catch (error) {
+    logger.error("Failed to fetch order by order number", {
+      orderNumber,
+      error,
+    });
+
+    throw new InternalServerError("Failed to fetch order by order number");
+  }
+};

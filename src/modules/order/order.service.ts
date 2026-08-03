@@ -4,6 +4,7 @@ import {
   findOrdersByStudentRepo,
   updateOrderStatusRepo,
   cancelOrderRepo,
+  findOrderByOrderNumberForPaymentRepo,
 } from "./order.repository";
 import {
   emitNewOrderToCafe,
@@ -32,8 +33,10 @@ import {
 } from "./order.type";
 import { findCafeById } from "../cafes/cafe.repository";
 import { findMenuItemByIdRepo } from "../menu/menu.repository";
+import { createCashfreeOrder } from "../../config/cashfree.config";
 
 const DEFAULT_DELIVERY_CHARGE = 20;
+const PLATFORM_COMMISSION_RATE = 0.1;
 
 /**
  * =========================================================
@@ -42,7 +45,7 @@ const DEFAULT_DELIVERY_CHARGE = 20;
  */
 export const createOrderService = async (
   input: CreateOrderInput,
-): Promise<IOrder> => {
+): Promise<{ order: IOrder; paymentSessionId?: string }> => {
   const {
     studentId,
     cafeId,
@@ -237,7 +240,38 @@ export const createOrderService = async (
     totalAmount,
   });
 
-  return order;
+  let paymentSessionId: string | undefined;
+
+  if (paymentMethod !== "cash") {
+    if (!cafe.cashfreeVendorId || cafe.vendorStatus !== "active") {
+      throw new BadRequestError(
+        "This cafe hasn't completed payout setup yet. Online payment isn't available — please choose Cash on Delivery/Pickup.",
+      );
+    }
+
+    const platformCommission = parseFloat(
+      (totalAmount * PLATFORM_COMMISSION_RATE).toFixed(2),
+    );
+    const cafeShare = parseFloat((totalAmount - platformCommission).toFixed(2));
+
+    const cfOrder = await createCashfreeOrder({
+      orderId: order.orderNumber,
+      amount: totalAmount,
+      customerId: studentId,
+      customerPhone: (order.studentId as any)?.phone || "9999999999",
+      customerEmail: (order.studentId as any)?.email,
+      vendorId: cafe.cashfreeVendorId,
+      vendorAmount: cafeShare,
+    });
+
+    paymentSessionId = cfOrder.payment_session_id;
+
+    await updateOrderStatusRepo(order._id.toString(), order.status, {
+      paymentId: cfOrder.cf_order_id,
+    } as any);
+  }
+
+  return { order, paymentSessionId };
 };
 
 /**
@@ -483,6 +517,46 @@ export const rateOrderService = async (
   );
 
   logger.info("Order rated", { orderId, studentId, stars });
+
+  return updatedOrder;
+};
+
+/**
+ * =========================================================
+ * MARK ORDER PAID
+ * =========================================================
+ */
+export const markOrderPaidByOrderNumberService = async (
+  orderNumber: string,
+): Promise<IOrder> => {
+  const order = await findOrderByOrderNumberForPaymentRepo(orderNumber);
+
+  if (!order) {
+    throw new NotFoundError("Order not found for this payment.");
+  }
+
+  if (["cancelled", "rejected"].includes(order.status)) {
+    logger.warn("Payment webhook received for a cancelled/rejected order", {
+      orderNumber,
+      status: order.status,
+    });
+    return order;
+  }
+
+  if (order.paymentStatus === "paid") {
+    return order;
+  }
+
+  const updatedOrder = await updateOrderStatusRepo(
+    order._id.toString(),
+    "accepted" as OrderStatus,
+    { paymentStatus: "paid" } as any,
+  );
+
+  logger.info("Order marked as paid via Cashfree webhook", {
+    orderNumber,
+    orderId: order._id,
+  });
 
   return updatedOrder;
 };

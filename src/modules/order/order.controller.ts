@@ -5,6 +5,7 @@ import {
   getStudentOrdersService,
   cancelOrderService,
   rateOrderService,
+  markOrderPaidByCfOrderIdService,
 } from "./order.service";
 
 /**
@@ -23,7 +24,7 @@ export const createOrderController = async (
     const { cafeId, items, paymentMethod, notes, orderType, deliveryAddress } =
       req.body;
 
-    const order = await createOrderService({
+    const { order, paymentSessionId } = await createOrderService({
       studentId,
       cafeId,
       items,
@@ -37,6 +38,7 @@ export const createOrderController = async (
       success: true,
       message: "Order created successfully",
       data: order,
+      paymentSessionId,
     });
   } catch (error) {
     next(error);
@@ -121,6 +123,29 @@ export const rateOrderController = async (
       message: "Order rated successfully",
       data: order,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
+ * CASHFREE WEBHOOK
+ * =========================================================
+ */
+export const handleCashfreeWebhookController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const event = req.body;
+
+    if (event.type === "PAYMENT_SUCCESS_WEBHOOK") {
+      const cfOrderId = event.data.order.order_id;
+      await markOrderPaidByCfOrderIdService(cfOrderId);
+    }
+    res.status(200).json({ success: true });
   } catch (error) {
     next(error);
   }

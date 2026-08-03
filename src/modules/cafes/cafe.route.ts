@@ -4,6 +4,7 @@ import {
   getApprovedCafesController,
   getMyCafeController,
   getCafeByIdController,
+  onboardVendorController,
 } from "./cafe.controller";
 
 import { upload } from "../../config/multer.config";
@@ -107,6 +108,8 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *               supportsDelivery:
  *                 type: boolean
  *                 default: false
+ *                 example: true
+ *                 description: Whether the cafe provides delivery service.
  *               aadharNumber:
  *                 type: string
  *               panNumber:
@@ -151,7 +154,7 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
 cafeRouter.post(
   "/register",
   authenticate,
-  authorize("student"),
+  authorize("student", "super_admin"),
   upload.fields([
     { name: "cafeImage", maxCount: 1 },
     { name: "menuImage", maxCount: 1 },
@@ -196,5 +199,12 @@ cafeRouter.get("/my-cafe", authenticate, getMyCafeController);
  *         description: Cafe details fetched successfully
  */
 cafeRouter.get("/:id", getCafeByIdController);
+
+cafeRouter.post(
+  "/:id/onboard-vendor",
+  authenticate,
+  authorize("cafe_owner"),
+  onboardVendorController,
+);
 
 export default cafeRouter;

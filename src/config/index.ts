@@ -28,6 +28,10 @@ const requiredEnvVariables = [
   "CLIENT_URL",
 
   "API_BASE_URL",
+
+  "CASHFREE_APP_ID",
+  "CASHFREE_SECRET_KEY",
+  "CASHFREE_ENV",
 ];
 
 /**
@@ -96,6 +100,10 @@ type ServerConfig = {
    * =====================================================
    */
   CORS_ORIGIN?: string;
+
+  CASHFREE_APP_ID: string;
+  CASHFREE_SECRET_KEY: string;
+  CASHFREE_ENV: string;
 };
 
 /**
@@ -164,11 +172,13 @@ export const serverConfig: ServerConfig = {
    * =====================================================
    */
   CORS_ORIGIN: process.env.CORS_ORIGIN || "http://localhost:3000",
-};
 
-/**
- * =========================================================
- * LOG
- * =========================================================
- */
-console.log(`Server Config Loaded Successfully (${serverConfig.NODE_ENV})`);
+  /**
+   * =====================================================
+   * CASEFREE
+   * =====================================================
+   */
+  CASHFREE_APP_ID: process.env.CASHFREE_APP_ID as string,
+  CASHFREE_SECRET_KEY: process.env.CASHFREE_SECRET_KEY as string,
+  CASHFREE_ENV: process.env.CASHFREE_ENV as string,
+};
