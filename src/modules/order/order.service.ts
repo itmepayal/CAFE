@@ -259,6 +259,7 @@ export const createOrderService = async (
         customerId: studentId,
         customerPhone: (order.studentId as any)?.phone || "9999999999",
         customerEmail: (order.studentId as any)?.email,
+        customerName: (order.studentId as any)?.name,
       });
 
       paymentSessionId = cfOrder.payment_session_id;
@@ -312,96 +313,6 @@ export const getOrderByNumberForStudentService = async (
 
 /**
  * =========================================================
- * ASSIGN / UPDATE DELIVERY
- * =========================================================
- */
-export const updateDeliveryStatusService = async (
-  orderId: string,
-  cafeId: string,
-  deliveryStatus: NonNullable<IOrder["deliveryStatus"]>,
-  deliveryPersonId?: string,
-): Promise<IOrder> => {
-  const order = await findOrderByIdRepo(orderId);
-
-  if (!order) {
-    throw new NotFoundError("Order not found.");
-  }
-
-  if (order.cafeId.toString() !== cafeId) {
-    throw new ForbiddenError("You can only manage your own cafe's orders.");
-  }
-
-  if (order.orderType !== "delivery") {
-    throw new BadRequestError("This order is not a delivery order.");
-  }
-
-  if (order.status === "cancelled" || order.status === "rejected") {
-    throw new BadRequestError(
-      `Cannot update delivery status. This order has already been ${order.status}.`,
-    );
-  }
-
-  const allowedTransitions: Record<string, string[]> = {
-    not_assigned: ["assigned"],
-    assigned: ["out_for_delivery"],
-    out_for_delivery: ["delivered"],
-    delivered: [],
-  };
-
-  const currentStatus = order.deliveryStatus ?? "not_assigned";
-
-  if (!allowedTransitions[currentStatus]?.includes(deliveryStatus)) {
-    throw new BadRequestError(
-      `Cannot move delivery status from '${currentStatus}' to '${deliveryStatus}'.`,
-    );
-  }
-
-  if (deliveryStatus === "assigned" && !deliveryPersonId) {
-    throw new BadRequestError(
-      "deliveryPersonId is required when assigning a delivery order.",
-    );
-  }
-
-  const update: Partial<IOrder> = {
-    deliveryStatus,
-    ...(deliveryPersonId ? { deliveryPersonId: deliveryPersonId as any } : {}),
-    ...(deliveryStatus === "out_for_delivery"
-      ? { status: "out_for_delivery", outForDeliveryAt: new Date() }
-      : {}),
-    ...(deliveryStatus === "delivered"
-      ? { status: "completed", completedAt: new Date() }
-      : {}),
-  };
-
-  const updatedOrder = await updateOrderStatusRepo(
-    orderId,
-    (update.status ?? order.status) as OrderStatus,
-    update as any,
-  );
-
-  logger.info("Delivery status updated", {
-    orderId,
-    deliveryStatus,
-    deliveryPersonId,
-  });
-
-  emitStatusUpdate(order.studentId.toString(), {
-    orderId,
-    status: update.status ?? order.status,
-    deliveryStatus,
-    message:
-      deliveryStatus === "out_for_delivery"
-        ? "Your order is out for delivery"
-        : deliveryStatus === "delivered"
-          ? "Your order has been delivered"
-          : "Your delivery has been assigned",
-  });
-
-  return updatedOrder;
-};
-
-/**
- * =========================================================
  * CANCEL ORDER
  * =========================================================
  */
@@ -419,6 +330,8 @@ export const cancelOrderService = async (
   if (order.studentId._id.toString() !== studentId) {
     throw new ForbiddenError("You are only allowed to cancel your own orders.");
   }
+
+  console.log(order.status);
 
   if (order.status === "cancelled") {
     throw new BadRequestError("This order has already been cancelled.");

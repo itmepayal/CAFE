@@ -14,10 +14,14 @@ export const createOrderRepo = async (
   data: Partial<IOrder>,
 ): Promise<IOrder> => {
   try {
-    return await Order.create(data);
+    const order = await Order.create(data);
+
+    return await Order.findById(order._id)
+      .populate("studentId", "name email phone")
+      .populate("cafeId")
+      .orFail(() => new NotFoundError("Order not found"));
   } catch (error) {
     logger.error("Failed to create order", { error });
-
     throw new InternalServerError("Failed to create order");
   }
 };

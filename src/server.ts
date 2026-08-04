@@ -41,6 +41,7 @@ const allowedOrigins = [
   "http://localhost:8000",
   "https://cafe-6icu.onrender.com",
   "https://cafe-myg2.onrender.com",
+  "https://gravity-task-management-system.vercel.app",
   process.env.CLIENT_URL,
 ].filter(Boolean) as string[];
 
