@@ -68,7 +68,7 @@ export const createCashfreeOrder = async (payload: {
       },
       order_meta: {
         return_url: `${process.env.CLIENT_URL}/order/status?order_id={order_id}`,
-        notify_url: `${process.env.SERVER_URL}/api/orders/webhook/cashfree`,
+        notify_url: `${process.env.SERVER_URL}/api/v1/orders/webhook/cashfree`,
       },
       order_splits: [
         {

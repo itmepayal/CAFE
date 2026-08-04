@@ -1,6 +1,7 @@
 import {
   createOrderRepo,
   findOrderByIdRepo,
+  findOrderByOrderNumberRepo,
   findOrdersByStudentRepo,
   updateOrderStatusRepo,
   cancelOrderRepo,
@@ -33,10 +34,13 @@ import {
 } from "./order.type";
 import { findCafeById } from "../cafes/cafe.repository";
 import { findMenuItemByIdRepo } from "../menu/menu.repository";
-import { createCashfreeOrder } from "../../config/cashfree.config";
+import {
+  createCashfreeOrder,
+  verifyCashfreeOrder,
+} from "../../config/cashfree.config";
 
-const DEFAULT_DELIVERY_CHARGE = 20;
-const PLATFORM_COMMISSION_RATE = 0.1;
+const DEFAULT_DELIVERY_CHARGE = 29;
+const PLATFORM_COMMISSION_FLAT = 9;
 
 /**
  * =========================================================
@@ -215,60 +219,109 @@ export const createOrderService = async (
     totalAmount,
   });
 
-  emitNewOrderToCafe(cafeId, {
-    orderId: order._id,
-    orderNumber: order.orderNumber,
-    studentId: order.studentId,
-    studentName: (order.studentId as any)?.name,
-    studentContact: (order.studentId as any)?.phone,
-    items: order.items,
-    totalAmount: order.totalAmount,
-    notes: order.notes,
-    orderType: order.orderType,
-    pickupCode: order.orderType === "pickup" ? order.pickupCode : undefined,
-    deliveryAddress:
-      order.orderType === "delivery" ? order.deliveryAddress : undefined,
-    createdAt: order.createdAt,
-  });
+  const notifyCafeAndAdminOfNewOrder = () => {
+    emitNewOrderToCafe(cafeId, {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      studentId: order.studentId,
+      studentName: (order.studentId as any)?.name,
+      studentContact: (order.studentId as any)?.phone,
+      items: order.items,
+      totalAmount: order.totalAmount,
+      notes: order.notes,
+      orderType: order.orderType,
+      pickupCode: order.orderType === "pickup" ? order.pickupCode : undefined,
+      deliveryAddress:
+        order.orderType === "delivery" ? order.deliveryAddress : undefined,
+      createdAt: order.createdAt,
+    });
 
-  emitAdminOrderEvent("admin:order:new", {
-    orderId: order._id,
-    orderNumber: order.orderNumber,
-    cafeId,
-    studentId,
-    orderType,
-    totalAmount,
-  });
+    emitAdminOrderEvent("admin:order:new", {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      cafeId,
+      studentId,
+      orderType,
+      totalAmount,
+    });
+  };
+
+  if (paymentMethod === "cash") {
+    notifyCafeAndAdminOfNewOrder();
+  }
 
   let paymentSessionId: string | undefined;
 
   if (paymentMethod !== "cash") {
     if (!cafe.cashfreeVendorId || cafe.vendorStatus !== "active") {
+      await updateOrderStatusRepo(
+        order._id.toString(),
+        "cancelled" as OrderStatus,
+        {
+          cancellationReason: "Cafe payout setup incomplete",
+          cancelledBy: "system",
+        } as any,
+      );
+
       throw new BadRequestError(
         "This cafe hasn't completed payout setup yet. Online payment isn't available — please choose Cash on Delivery/Pickup.",
       );
     }
 
-    const platformCommission = parseFloat(
-      (totalAmount * PLATFORM_COMMISSION_RATE).toFixed(2),
-    );
+    const platformCommission = PLATFORM_COMMISSION_FLAT;
     const cafeShare = parseFloat((totalAmount - platformCommission).toFixed(2));
 
-    const cfOrder = await createCashfreeOrder({
-      orderId: order.orderNumber,
-      amount: totalAmount,
-      customerId: studentId,
-      customerPhone: (order.studentId as any)?.phone || "9999999999",
-      customerEmail: (order.studentId as any)?.email,
-      vendorId: cafe.cashfreeVendorId,
-      vendorAmount: cafeShare,
-    });
+    if (cafeShare <= 0) {
+      await updateOrderStatusRepo(
+        order._id.toString(),
+        "cancelled" as OrderStatus,
+        {
+          cancellationReason: "Order amount too low for online payment",
+          cancelledBy: "system",
+        } as any,
+      );
 
-    paymentSessionId = cfOrder.payment_session_id;
+      throw new BadRequestError(
+        "Order amount is too low to process online payment.",
+      );
+    }
 
-    await updateOrderStatusRepo(order._id.toString(), order.status, {
-      paymentId: cfOrder.cf_order_id,
-    } as any);
+    try {
+      const cfOrder = await createCashfreeOrder({
+        orderId: order.orderNumber,
+        amount: totalAmount,
+        customerId: studentId,
+        customerPhone: (order.studentId as any)?.phone || "9999999999",
+        customerEmail: (order.studentId as any)?.email,
+        vendorId: cafe.cashfreeVendorId,
+        vendorAmount: cafeShare,
+      });
+
+      paymentSessionId = cfOrder.payment_session_id;
+
+      await updateOrderStatusRepo(order._id.toString(), order.status, {
+        paymentId: cfOrder.cf_order_id,
+      } as any);
+    } catch (error) {
+      logger.error("Cashfree order creation failed, cancelling order", {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        error,
+      });
+
+      await updateOrderStatusRepo(
+        order._id.toString(),
+        "cancelled" as OrderStatus,
+        {
+          cancellationReason: "Payment session creation failed",
+          cancelledBy: "system",
+        } as any,
+      );
+
+      throw new BadRequestError(
+        "Unable to initiate payment right now. Please try again in a moment.",
+      );
+    }
   }
 
   return { order, paymentSessionId };
@@ -283,6 +336,18 @@ export const getStudentOrdersService = async (
   studentId: string,
 ): Promise<IOrder[]> => {
   return await findOrdersByStudentRepo(studentId);
+};
+
+/**
+ * =========================================================
+ * GET SINGLE ORDER BY ORDER NUMBER
+ * =========================================================
+ */
+export const getOrderByNumberForStudentService = async (
+  orderNumber: string,
+  studentId: string,
+): Promise<IOrder> => {
+  return await findOrderByOrderNumberRepo(orderNumber, studentId);
 };
 
 /**
@@ -558,5 +623,88 @@ export const markOrderPaidByOrderNumberService = async (
     orderId: order._id,
   });
 
+  const studentIdStr = (updatedOrder.studentId as any)?._id
+    ? (updatedOrder.studentId as any)._id.toString()
+    : updatedOrder.studentId.toString();
+
+  emitStatusUpdate(studentIdStr, {
+    orderId: updatedOrder._id.toString(),
+    status: updatedOrder.status,
+    message: "Payment received! Your order has been confirmed.",
+  });
+
+  emitNewOrderToCafe(updatedOrder.cafeId.toString(), {
+    orderId: updatedOrder._id,
+    orderNumber: updatedOrder.orderNumber,
+    studentId: updatedOrder.studentId,
+    studentName: (updatedOrder.studentId as any)?.name,
+    studentContact: (updatedOrder.studentId as any)?.phone,
+    items: updatedOrder.items,
+    totalAmount: updatedOrder.totalAmount,
+    notes: updatedOrder.notes,
+    orderType: updatedOrder.orderType,
+    pickupCode:
+      updatedOrder.orderType === "pickup" ? updatedOrder.pickupCode : undefined,
+    deliveryAddress:
+      updatedOrder.orderType === "delivery"
+        ? updatedOrder.deliveryAddress
+        : undefined,
+    createdAt: updatedOrder.createdAt,
+  });
+
+  emitAdminOrderEvent("admin:order:new", {
+    orderId: updatedOrder._id,
+    orderNumber: updatedOrder.orderNumber,
+    cafeId: updatedOrder.cafeId.toString(),
+    studentId: studentIdStr,
+    orderType: updatedOrder.orderType,
+    totalAmount: updatedOrder.totalAmount,
+  });
+
   return updatedOrder;
+};
+
+/**
+ * =========================================================
+ * VERIFY & SYNC PAYMENT
+ * =========================================================
+ */
+export const verifyAndSyncOrderPaymentService = async (
+  orderNumber: string,
+  studentId: string,
+): Promise<IOrder> => {
+  const order = await findOrderByOrderNumberForPaymentRepo(
+    orderNumber,
+    studentId,
+  );
+
+  if (!order) {
+    throw new NotFoundError("Order not found.");
+  }
+
+  if (order.paymentStatus === "paid") {
+    return order;
+  }
+
+  if (order.paymentMethod === "cash") {
+    return order;
+  }
+
+  if (!order.paymentId) {
+    logger.warn("No Cashfree payment ID found for order", { orderNumber });
+    return order;
+  }
+
+  const cfOrder = await verifyCashfreeOrder(order.paymentId);
+
+  logger.info("Manual payment verification checked", {
+    orderNumber,
+    cfStatus: cfOrder.order_status,
+  });
+
+  if (cfOrder.order_status === "PAID") {
+    return await markOrderPaidByOrderNumberService(orderNumber);
+  }
+
+  return order;
 };

@@ -1,6 +1,5 @@
 import Order, { IOrder } from "../../models/order";
 import logger from "../../config/logger.config";
-
 import {
   InternalServerError,
   NotFoundError,
@@ -60,9 +59,16 @@ export const findOrderByIdRepo = async (orderId: string): Promise<IOrder> => {
  */
 export const findOrderByOrderNumberRepo = async (
   orderNumber: string,
+  studentId?: string,
 ): Promise<IOrder> => {
   try {
-    const order = await Order.findOne({ orderNumber })
+    const query: Record<string, unknown> = { orderNumber };
+
+    if (studentId) {
+      query.studentId = studentId;
+    }
+
+    const order = await Order.findOne(query)
       .populate("studentId", "name email profileImage")
       .populate("cafeId");
 
@@ -252,11 +258,23 @@ export const cancelOrderRepo = async (
   }
 };
 
+/**
+ * =========================================================
+ * FIND ORDER BY ORDER NUMBER
+ * =========================================================
+ */
 export const findOrderByOrderNumberForPaymentRepo = async (
   orderNumber: string,
+  studentId?: string,
 ): Promise<IOrder | null> => {
   try {
-    const order = await Order.findOne({ orderNumber }).populate(
+    const query: Record<string, unknown> = { orderNumber };
+
+    if (studentId) {
+      query.studentId = studentId;
+    }
+
+    const order = await Order.findOne(query).populate(
       "studentId",
       "name email profileImage",
     );
