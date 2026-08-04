@@ -40,7 +40,6 @@ import {
 } from "../../config/cashfree.config";
 
 const DEFAULT_DELIVERY_CHARGE = 29;
-const PLATFORM_COMMISSION_FLAT = 9;
 
 /**
  * =========================================================
@@ -253,39 +252,6 @@ export const createOrderService = async (
   let paymentSessionId: string | undefined;
 
   if (paymentMethod !== "cash") {
-    if (!cafe.cashfreeVendorId || cafe.vendorStatus !== "active") {
-      await updateOrderStatusRepo(
-        order._id.toString(),
-        "cancelled" as OrderStatus,
-        {
-          cancellationReason: "Cafe payout setup incomplete",
-          cancelledBy: "system",
-        } as any,
-      );
-
-      throw new BadRequestError(
-        "This cafe hasn't completed payout setup yet. Online payment isn't available — please choose Cash on Delivery/Pickup.",
-      );
-    }
-
-    const platformCommission = PLATFORM_COMMISSION_FLAT;
-    const cafeShare = parseFloat((totalAmount - platformCommission).toFixed(2));
-
-    if (cafeShare <= 0) {
-      await updateOrderStatusRepo(
-        order._id.toString(),
-        "cancelled" as OrderStatus,
-        {
-          cancellationReason: "Order amount too low for online payment",
-          cancelledBy: "system",
-        } as any,
-      );
-
-      throw new BadRequestError(
-        "Order amount is too low to process online payment.",
-      );
-    }
-
     try {
       const cfOrder = await createCashfreeOrder({
         orderId: order.orderNumber,
@@ -293,8 +259,6 @@ export const createOrderService = async (
         customerId: studentId,
         customerPhone: (order.studentId as any)?.phone || "9999999999",
         customerEmail: (order.studentId as any)?.email,
-        vendorId: cafe.cashfreeVendorId,
-        vendorAmount: cafeShare,
       });
 
       paymentSessionId = cfOrder.payment_session_id;
@@ -303,23 +267,19 @@ export const createOrderService = async (
         paymentId: cfOrder.cf_order_id,
       } as any);
     } catch (error) {
-      logger.error("Cashfree order creation failed, cancelling order", {
+      logger.error("Cashfree order creation failed", {
         orderId: order._id,
         orderNumber: order.orderNumber,
         error,
       });
 
-      await updateOrderStatusRepo(
-        order._id.toString(),
-        "cancelled" as OrderStatus,
-        {
-          cancellationReason: "Payment session creation failed",
-          cancelledBy: "system",
-        } as any,
-      );
+      await updateOrderStatusRepo(order._id.toString(), "cancelled", {
+        cancellationReason: "Payment session creation failed",
+        cancelledBy: "super_admin",
+      } as any);
 
       throw new BadRequestError(
-        "Unable to initiate payment right now. Please try again in a moment.",
+        "Unable to initiate payment. Please try again.",
       );
     }
   }

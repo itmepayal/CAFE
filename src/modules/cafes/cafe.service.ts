@@ -3,12 +3,10 @@ import {
   findApprovedCafes,
   findCafeById,
   findCafeByUserId,
-  updatedCafe,
 } from "./cafe.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
 import User from "../../models/user";
-import { createCashfreeVendor } from "../../config/cashfree.config";
 
 // =========================================
 // REGISTER CAFE
@@ -113,49 +111,4 @@ export const getMyCafeService = async (userId: string) => {
   }
 
   return cafe;
-};
-
-// =========================================
-// ONBOARD CAFE VENDOR
-// =========================================
-export const onboardCafeVendorService = async (
-  cafeId: string,
-  payload: {
-    name: string;
-    email: string;
-    phone: string;
-    bankAccountNumber: string;
-    ifsc: string;
-  },
-) => {
-  const cafe = await findCafeById(cafeId);
-
-  if (!cafe) {
-    throw new NotFoundError("Cafe not found");
-  }
-
-  if (cafe.cashfreeVendorId) {
-    throw new BadRequestError("This cafe is already onboarded for payouts.");
-  }
-
-  const vendorId = `cafe_${cafeId}`;
-
-  const vendorResponse = await createCashfreeVendor({
-    vendorId,
-    name: payload.name,
-    email: payload.email,
-    phone: payload.phone,
-    bankAccountNumber: payload.bankAccountNumber,
-    ifsc: payload.ifsc,
-  });
-
-  const updateCafe = await updatedCafe(cafeId, {
-    cashfreeVendorId: vendorId,
-    vendorStatus: "active",
-  });
-
-  return {
-    cafe: updateCafe,
-    cashfreeResponse: vendorResponse,
-  };
 };

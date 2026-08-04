@@ -4,7 +4,6 @@ import {
   getApprovedCafesController,
   getMyCafeController,
   getCafeByIdController,
-  onboardVendorController,
 } from "./cafe.controller";
 
 import { upload } from "../../config/multer.config";
@@ -199,12 +198,5 @@ cafeRouter.get("/my-cafe", authenticate, getMyCafeController);
  *         description: Cafe details fetched successfully
  */
 cafeRouter.get("/:id", getCafeByIdController);
-
-cafeRouter.post(
-  "/:id/onboard-vendor",
-  authenticate,
-  authorize("cafe_owner"),
-  onboardVendorController,
-);
 
 export default cafeRouter;
