@@ -44,6 +44,17 @@ export const findUserByProviderIdOrEmail = async (
 
 /**
  * =========================================================
+ * FIND USER BY EMAIL
+ * =========================================================
+ */
+export const findUserByEmail = async (email: string): Promise<IUser | null> => {
+  return User.findOne({ email: email.toLowerCase().trim() }).catch(() => {
+    throw new InternalServerError("Failed to find user by email");
+  });
+};
+
+/**
+ * =========================================================
  * FIND USER BY PROVIDER ID
  * =========================================================
  */
@@ -188,6 +199,36 @@ export const createAdminAppleUser = async (data: {
     provider: "apple",
     providerId: data.providerId,
     role: "super_admin",
+    isBlocked: false,
+  });
+
+  return user;
+};
+
+export const createCafeOwnerGoogleUser = async (data: {
+  email: string;
+  providerId: string;
+}): Promise<IUser> => {
+  const user = await User.create({
+    email: data.email,
+    provider: "apple",
+    providerId: data.providerId,
+    role: "cafe_owner",
+    isBlocked: false,
+  });
+
+  return user;
+};
+
+export const createCafeOwnerAppleUser = async (data: {
+  email: string;
+  providerId: string;
+}): Promise<IUser> => {
+  const user = await User.create({
+    email: data.email,
+    provider: "apple",
+    providerId: data.providerId,
+    role: "cafe_owner",
     isBlocked: false,
   });
 

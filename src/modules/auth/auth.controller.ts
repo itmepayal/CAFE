@@ -9,6 +9,8 @@ import {
   refreshTokens,
   adminLogin,
   adminRegister,
+  cafeOwnerLogin,
+  cafeOwnerRegister,
 } from "./auth.service";
 
 import { setAuthCookies } from "../../utils/cookies/cookie.utils";
@@ -222,6 +224,70 @@ export const adminRegisterController = asyncHandler(
     res.status(201).json({
       success: true,
       message: "Admin registration successful",
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      },
+    });
+  },
+);
+
+/**
+ * =========================================================
+ * CAFE OWNER LOGIN
+ * =========================================================
+ */
+export const cafeOwnerLoginController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { provider, token, identityToken } = req.body;
+
+    const result = await cafeOwnerLogin({
+      provider,
+      token,
+      identityToken,
+    });
+
+    setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Cafe owner login successful",
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      },
+    });
+  },
+);
+
+/**
+ * =========================================================
+ * CAFE OWNER REGISTER
+ * =========================================================
+ */
+export const cafeOwnerRegisterController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { provider, token, identityToken } = req.body;
+
+    const result = await cafeOwnerRegister({
+      provider,
+      token,
+      identityToken,
+    });
+
+    setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Cafe owner registration successful",
       data: {
         user: result.user,
         accessToken: result.accessToken,

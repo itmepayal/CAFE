@@ -9,6 +9,8 @@ import {
   refreshTokenController,
   adminLoginController,
   adminRegisterController,
+  cafeOwnerLoginController,
+  cafeOwnerRegisterController,
 } from "./auth.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
@@ -292,3 +294,158 @@ authRouter.post("/admin/register", adminRegisterController);
  *         description: Invalid token or user is not a super_admin
  */
 authRouter.post("/admin/login", adminLoginController);
+
+/**
+ * @swagger
+ * /auth/cafe-owner/register:
+ *   post:
+ *     summary: Register as cafe owner using Google or Apple
+ *     description: >
+ *       Creates a new cafe owner account using Google or Apple authentication.
+ *       The created user is assigned the cafe_owner role by the server.
+ *       The role is never accepted from the client.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - provider
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum:
+ *                   - google
+ *                   - apple
+ *                 example: google
+ *               token:
+ *                 type: string
+ *                 description: Required when provider is "google"
+ *                 example: eyJhbGciOiJSUzI1NiIs...
+ *               identityToken:
+ *                 type: string
+ *                 description: Required when provider is "apple"
+ *                 example: eyJraWQiOiJ...
+ *     responses:
+ *       201:
+ *         description: Cafe owner registration successful and cookies set
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Cafe owner registration successful
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: 665c12345678901234567890
+ *                         name:
+ *                           type: string
+ *                           example: Cafe Owner
+ *                         email:
+ *                           type: string
+ *                           example: owner@cafe.com
+ *                         role:
+ *                           type: string
+ *                           example: cafe_owner
+ *                     accessToken:
+ *                       type: string
+ *                       example: eyJhbGciOiJIUzI1NiIs...
+ *                     refreshToken:
+ *                       type: string
+ *                       example: eyJhbGciOiJIUzI1NiIs...
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Invalid provider token, missing email, or unsupported provider
+ *       409:
+ *         description: Account already exists
+ */
+authRouter.post("/cafe-owner/register", cafeOwnerRegisterController);
+
+/**
+ * @swagger
+ * /auth/cafe-owner/login:
+ *   post:
+ *     summary: Login as cafe owner using Google or Apple
+ *     description: >
+ *       Authenticates an existing cafe owner using Google or Apple.
+ *       Login is allowed only when the user's role is cafe_owner.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - provider
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum:
+ *                   - google
+ *                   - apple
+ *                 example: google
+ *               token:
+ *                 type: string
+ *                 description: Required when provider is "google"
+ *                 example: eyJhbGciOiJSUzI1NiIs...
+ *               identityToken:
+ *                 type: string
+ *                 description: Required when provider is "apple"
+ *                 example: eyJraWQiOiJ...
+ *     responses:
+ *       200:
+ *         description: Cafe owner login successful and cookies set
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Cafe owner login successful
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: 665c12345678901234567890
+ *                         name:
+ *                           type: string
+ *                           example: Cafe Owner
+ *                         email:
+ *                           type: string
+ *                           example: owner@cafe.com
+ *                         role:
+ *                           type: string
+ *                           example: cafe_owner
+ *                     accessToken:
+ *                       type: string
+ *                       example: eyJhbGciOiJIUzI1NiIs...
+ *                     refreshToken:
+ *                       type: string
+ *                       example: eyJhbGciOiJIUzI1NiIs...
+ *       401:
+ *         description: Invalid token or user is not a cafe_owner
+ */
+authRouter.post("/cafe-owner/login", cafeOwnerLoginController);

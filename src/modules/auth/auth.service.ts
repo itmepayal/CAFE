@@ -21,6 +21,8 @@ import {
   updateProfileRepo,
   createAdminAppleUser,
   createAdminGoogleUser,
+  createCafeOwnerGoogleUser,
+  createCafeOwnerAppleUser,
 } from "./auth.repository";
 
 import { logger } from "../../config/logger.config";
@@ -51,6 +53,7 @@ interface GoogleLoginPayload {
 interface AppleLoginPayload {
   identityToken: string;
 }
+
 
 /**
  * =========================================================
@@ -414,6 +417,143 @@ export const adminRegister = async ({
   });
 
   logger.info(`Admin registration successful: ${user._id}`);
+
+  return {
+    user,
+    accessToken,
+    refreshToken,
+  };
+};
+
+/**
+ * =========================================================
+ * CAFE OWNER LOGIN
+ * =========================================================
+ */
+export const cafeOwnerLogin = async ({
+  provider,
+  token,
+  identityToken,
+}: AdminLoginPayload): Promise<AuthResponse> => {
+  logger.info(`Cafe owner login attempt via ${provider}`);
+
+  let result: AuthResponse;
+
+  if (provider === "google") {
+    if (!token) {
+      throw new UnauthorizedError("Google token missing");
+    }
+
+    result = await googleLogin({ token });
+  } else if (provider === "apple") {
+    if (!identityToken) {
+      throw new UnauthorizedError("Apple identity token missing");
+    }
+
+    result = await appleLogin({
+      identityToken,
+    });
+  } else {
+    throw new UnauthorizedError("Unsupported login provider");
+  }
+
+  if (result.user.role !== "cafe_owner") {
+    logger.warn(
+      `Non-cafe-owner attempted cafe owner login: ${result.user._id}`,
+    );
+
+    throw new UnauthorizedError("Cafe owner access required");
+  }
+
+  logger.info(`Cafe owner login successful for user: ${result.user._id}`);
+
+  return result;
+};
+
+/**
+ * =========================================================
+ * CAFE OWNER LOGIN
+ * =========================================================
+ */
+export const cafeOwnerRegister = async ({
+  provider,
+  token,
+  identityToken,
+}: AdminRegisterPayload): Promise<AuthResponse> => {
+  logger.info(`Cafe owner registration attempt via ${provider}`);
+
+  let user: IUser | null = null;
+
+  if (provider === "google") {
+    if (!token) {
+      throw new UnauthorizedError("Google token missing");
+    }
+
+    const googleUser = await verifyGoogleToken(token).catch((err) => {
+      logger.warn(`Google token verification failed: ${err?.message}`);
+
+      throw new UnauthorizedError("Invalid Google token");
+    });
+
+    if (!googleUser.email) {
+      throw new UnauthorizedError("Email not provided by Google");
+    }
+
+    user = await findUserByProviderIdOrEmail(
+      googleUser.providerId,
+      googleUser.email,
+    );
+
+    if (user) {
+      throw new UnauthorizedError("An account already exists with this email");
+    }
+
+    user = await createCafeOwnerGoogleUser({
+      email: googleUser.email,
+      providerId: googleUser.providerId,
+    });
+  } else if (provider === "apple") {
+    if (!identityToken) {
+      throw new UnauthorizedError("Apple identity token missing");
+    }
+
+    const appleUser = await verifyAppleToken(identityToken).catch((err) => {
+      logger.warn(`Apple token verification failed: ${err?.message}`);
+
+      throw new UnauthorizedError("Invalid Apple token");
+    });
+
+    if (!appleUser.email) {
+      throw new UnauthorizedError("Email not provided by Apple");
+    }
+
+    user = await findUserByProviderId(appleUser.providerId);
+
+    if (user) {
+      throw new UnauthorizedError("An account already exists");
+    }
+
+    user = await createCafeOwnerAppleUser({
+      email: appleUser.email,
+      providerId: appleUser.providerId,
+    });
+  } else {
+    throw new UnauthorizedError("Unsupported login provider");
+  }
+
+  if (!user) {
+    throw new UnauthorizedError("Cafe owner registration failed");
+  }
+
+  const accessToken = generateAccessToken(user);
+
+  const { refreshToken } = generateRefreshToken({
+    user,
+    sessionId: crypto.randomUUID(),
+    familyId: crypto.randomUUID(),
+  });
+
+  logger.info(`Cafe owner registration successful: ${user._id}`);
 
   return {
     user,
