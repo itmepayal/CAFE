@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utils/handlers/async.handler";
+
 import {
   googleLogin,
   appleLogin,
@@ -7,7 +8,9 @@ import {
   changeProfile,
   refreshTokens,
   adminLogin,
+  adminRegister,
 } from "./auth.service";
+
 import { setAuthCookies } from "../../utils/cookies/cookie.utils";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
@@ -79,6 +82,7 @@ export const appleLoginController = asyncHandler(
 export const getCurrentUserController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?.id as string;
+
     const user = await getCurrentUser(userId);
 
     res.status(200).json({
@@ -142,7 +146,9 @@ export const refreshTokenController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const refreshToken = req.cookies?.refreshToken ?? req.body?.refreshToken;
 
-    const result = await refreshTokens({ refreshToken });
+    const result = await refreshTokens({
+      refreshToken,
+    });
 
     setAuthCookies(res, {
       accessToken: result.accessToken,
@@ -161,11 +167,20 @@ export const refreshTokenController = asyncHandler(
   },
 );
 
+/**
+ * =========================================================
+ * ADMIN LOGIN
+ * =========================================================
+ */
 export const adminLoginController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const { provider, token, identityToken } = req.body;
 
-    const result = await adminLogin({ provider, token, identityToken });
+    const result = await adminLogin({
+      provider,
+      token,
+      identityToken,
+    });
 
     setAuthCookies(res, {
       accessToken: result.accessToken,
@@ -175,6 +190,38 @@ export const adminLoginController = asyncHandler(
     res.status(200).json({
       success: true,
       message: "Admin login successful",
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      },
+    });
+  },
+);
+
+/**
+ * =========================================================
+ * ADMIN REGISTER
+ * =========================================================
+ */
+export const adminRegisterController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { provider, token, identityToken } = req.body;
+
+    const result = await adminRegister({
+      provider,
+      token,
+      identityToken,
+    });
+
+    setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Admin registration successful",
       data: {
         user: result.user,
         accessToken: result.accessToken,

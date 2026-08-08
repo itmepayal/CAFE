@@ -5,9 +5,12 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
 } from "../../utils/jwt/token.jwt";
+
 import { verifyGoogleToken } from "../../providers/google.provider";
 import { verifyAppleToken } from "../../providers/apple.provider";
+
 import { UnauthorizedError } from "../../utils/errors/app.error";
+
 import {
   findUserByProviderIdOrEmail,
   findUserByProviderId,
@@ -16,10 +19,15 @@ import {
   createAppleUser,
   updateUserSession,
   updateProfileRepo,
+  createAdminAppleUser,
+  createAdminGoogleUser,
 } from "./auth.repository";
+
 import { logger } from "../../config/logger.config";
+
 import {
   AdminLoginPayload,
+  AdminRegisterPayload,
   RefreshTokenPayload,
   UpdateProfilePayload,
 } from "./auth.type";
@@ -29,6 +37,7 @@ import {
  * GOOGLE LOGIN PAYLOAD
  * =========================================================
  */
+
 interface GoogleLoginPayload {
   token: string;
 }
@@ -38,6 +47,7 @@ interface GoogleLoginPayload {
  * APPLE LOGIN PAYLOAD
  * =========================================================
  */
+
 interface AppleLoginPayload {
   identityToken: string;
 }
@@ -47,6 +57,7 @@ interface AppleLoginPayload {
  * AUTH RESPONSE
  * =========================================================
  */
+
 interface AuthResponse {
   user: IUser;
   accessToken: string;
@@ -58,6 +69,7 @@ interface AuthResponse {
  * GOOGLE LOGIN SERVICE
  * =========================================================
  */
+
 export const googleLogin = async ({
   token,
 }: GoogleLoginPayload): Promise<AuthResponse> => {
@@ -65,6 +77,7 @@ export const googleLogin = async ({
 
   const googleUser = await verifyGoogleToken(token).catch((err) => {
     logger.warn(`Google token verification failed: ${err?.message}`);
+
     throw new UnauthorizedError("Invalid Google token");
   });
 
@@ -75,8 +88,9 @@ export const googleLogin = async ({
 
   if (!user) {
     logger.info(`Creating new user via Google login: ${googleUser.email}`);
+
     user = await createGoogleUser({
-      name: googleUser.name,
+      name: googleUser.name ?? "User",
       email: googleUser.email,
       profileImage: googleUser.profileImage,
       providerId: googleUser.providerId,
@@ -85,6 +99,7 @@ export const googleLogin = async ({
 
   if (user.isBlocked) {
     logger.warn(`Blocked user attempted Google login: ${user._id}`);
+
     throw new UnauthorizedError("Account blocked");
   }
 
@@ -112,6 +127,7 @@ export const googleLogin = async ({
  * APPLE LOGIN SERVICE
  * =========================================================
  */
+
 export const appleLogin = async ({
   identityToken,
 }: AppleLoginPayload): Promise<AuthResponse> => {
@@ -119,13 +135,19 @@ export const appleLogin = async ({
 
   const appleUser = await verifyAppleToken(identityToken).catch((err) => {
     logger.warn(`Apple token verification failed: ${err?.message}`);
+
     throw new UnauthorizedError("Invalid Apple token");
   });
+
+  if (!appleUser.email) {
+    throw new UnauthorizedError("Email not provided by Apple");
+  }
 
   let user = await findUserByProviderId(appleUser.providerId);
 
   if (!user) {
     logger.info(`Creating new user via Apple login: ${appleUser.email}`);
+
     user = await createAppleUser({
       email: appleUser.email,
       providerId: appleUser.providerId,
@@ -134,6 +156,7 @@ export const appleLogin = async ({
 
   if (user.isBlocked) {
     logger.warn(`Blocked user attempted Apple login: ${user._id}`);
+
     throw new UnauthorizedError("Account blocked");
   }
 
@@ -161,7 +184,8 @@ export const appleLogin = async ({
  * GET CURRENT USER
  * =========================================================
  */
-export const getCurrentUser = async (userId: string): Promise<IUser> => {
+
+export const getCurrentUser = async (userId: string): Promise<IUser | null> => {
   logger.info(`Fetching current user: ${userId}`);
 
   return await findUserById(userId);
@@ -172,10 +196,11 @@ export const getCurrentUser = async (userId: string): Promise<IUser> => {
  * CHANGE CURRENT USER
  * =========================================================
  */
+
 export const changeProfile = async (
   userId: string,
   payload: UpdateProfilePayload,
-): Promise<IUser> => {
+): Promise<IUser | null> => {
   logger.info(`Updating profile: ${userId}`);
 
   const updateData: UpdateProfilePayload = {};
@@ -204,6 +229,7 @@ export const changeProfile = async (
  * REFRESH TOKENS
  * =========================================================
  */
+
 export const refreshTokens = async ({
   refreshToken,
 }: RefreshTokenPayload): Promise<AuthResponse> => {
@@ -211,7 +237,12 @@ export const refreshTokens = async ({
     throw new UnauthorizedError("Refresh token missing");
   }
 
-  let decoded;
+  let decoded: {
+    sub: string;
+    sessionId: string;
+    familyId: string;
+  };
+
   try {
     decoded = verifyRefreshToken(refreshToken) as {
       sub: string;
@@ -226,11 +257,13 @@ export const refreshTokens = async ({
 
   if (!user) {
     logger.warn(`Refresh token used for non-existent user: ${decoded.sub}`);
+
     throw new UnauthorizedError("Invalid refresh token");
   }
 
   if (user.isBlocked) {
     logger.warn(`Blocked user attempted token refresh: ${user._id}`);
+
     throw new UnauthorizedError("Account blocked");
   }
 
@@ -251,6 +284,12 @@ export const refreshTokens = async ({
   };
 };
 
+/**
+ * =========================================================
+ * ADMIN LOGIN
+ * =========================================================
+ */
+
 export const adminLogin = async ({
   provider,
   token,
@@ -261,22 +300,124 @@ export const adminLogin = async ({
   let result: AuthResponse;
 
   if (provider === "google") {
-    if (!token) throw new UnauthorizedError("Google token missing");
+    if (!token) {
+      throw new UnauthorizedError("Google token missing");
+    }
+
     result = await googleLogin({ token });
   } else if (provider === "apple") {
-    if (!identityToken)
+    if (!identityToken) {
       throw new UnauthorizedError("Apple identity token missing");
-    result = await appleLogin({ identityToken });
+    }
+
+    result = await appleLogin({
+      identityToken,
+    });
   } else {
     throw new UnauthorizedError("Unsupported login provider");
   }
 
   if (result.user.role !== "super_admin") {
     logger.warn(`Non-admin attempted admin login: ${result.user._id}`);
+
     throw new UnauthorizedError("Admin access required");
   }
 
   logger.info(`Admin login successful for user: ${result.user._id}`);
 
   return result;
+};
+
+/**
+ * =========================================================
+ * ADMIN REGISTER
+ * =========================================================
+ */
+export const adminRegister = async ({
+  provider,
+  token,
+  identityToken,
+}: AdminRegisterPayload): Promise<AuthResponse> => {
+  logger.info(`Admin registration attempt via ${provider}`);
+
+  let user: IUser | null = null;
+
+  if (provider === "google") {
+    if (!token) {
+      throw new UnauthorizedError("Google token missing");
+    }
+
+    const googleUser = await verifyGoogleToken(token).catch((err) => {
+      logger.warn(`Google token verification failed: ${err?.message}`);
+
+      throw new UnauthorizedError("Invalid Google token");
+    });
+
+    if (!googleUser.email) {
+      throw new UnauthorizedError("Email not provided by Google");
+    }
+
+    user = await findUserByProviderIdOrEmail(
+      googleUser.providerId,
+      googleUser.email,
+    );
+
+    if (user) {
+      throw new UnauthorizedError("An account already exists with this email");
+    }
+
+    user = await createAdminGoogleUser({
+      name: googleUser.name ?? "Admin",
+      email: googleUser.email,
+      profileImage: googleUser.profileImage,
+      providerId: googleUser.providerId,
+    });
+  } else if (provider === "apple") {
+    if (!identityToken) {
+      throw new UnauthorizedError("Apple identity token missing");
+    }
+
+    const appleUser = await verifyAppleToken(identityToken).catch((err) => {
+      logger.warn(`Apple token verification failed: ${err?.message}`);
+
+      throw new UnauthorizedError("Invalid Apple token");
+    });
+
+    if (!appleUser.email) {
+      throw new UnauthorizedError("Email not provided by Apple");
+    }
+
+    user = await findUserByProviderId(appleUser.providerId);
+
+    if (user) {
+      throw new UnauthorizedError("An account already exists");
+    }
+
+    user = await createAdminAppleUser({
+      email: appleUser.email,
+      providerId: appleUser.providerId,
+    });
+  } else {
+    throw new UnauthorizedError("Unsupported login provider");
+  }
+
+  if (!user) {
+    throw new UnauthorizedError("Admin registration failed");
+  }
+
+  const accessToken = generateAccessToken(user);
+
+  const { refreshToken } = generateRefreshToken({
+    user,
+    sessionId: crypto.randomUUID(),
+    familyId: crypto.randomUUID(),
+  });
+
+  logger.info(`Admin registration successful: ${user._id}`);
+
+  return {
+    user,
+    accessToken,
+    refreshToken,
+  };
 };

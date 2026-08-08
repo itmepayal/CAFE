@@ -159,3 +159,37 @@ export const updateProfileRepo = async (
 
   return user;
 };
+
+export const createAdminGoogleUser = async (data: {
+  name: string;
+  email: string;
+  profileImage?: string;
+  providerId: string;
+}): Promise<IUser> => {
+  const user = await User.create({
+    name: data.name,
+    email: data.email,
+    profileImage: data.profileImage,
+    provider: "google",
+    providerId: data.providerId,
+    role: "super_admin",
+    isBlocked: false,
+  });
+
+  return user;
+};
+
+export const createAdminAppleUser = async (data: {
+  email: string;
+  providerId: string;
+}): Promise<IUser> => {
+  const user = await User.create({
+    email: data.email,
+    provider: "apple",
+    providerId: data.providerId,
+    role: "super_admin",
+    isBlocked: false,
+  });
+
+  return user;
+};

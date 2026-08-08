@@ -14,3 +14,9 @@ export interface AdminLoginPayload {
   token?: string;
   identityToken?: string;
 }
+
+export interface AdminRegisterPayload {
+  provider: "google" | "apple";
+  token?: string;
+  identityToken?: string;
+}
