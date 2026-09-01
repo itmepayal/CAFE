@@ -1,6 +1,7 @@
 import MenuItem, { type IMenuItem } from "../../models/menu";
 import Cafe from "../../models/cafe";
 
+import logger from "../../config/logger.config";
 import {
   InternalServerError,
   NotFoundError,
@@ -23,7 +24,7 @@ export const getMenuItemsByCafeRepo = async (
       createdAt: -1,
     });
   } catch (error) {
-    console.error(error);
+    logger.error("Failed to fetch menu items by cafe", { cafeId, error });
     throw error;
   }
 };

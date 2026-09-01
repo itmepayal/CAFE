@@ -28,12 +28,15 @@ const allowedOrigins = [
 
 const corsOptions: CorsOptions = {
   origin(origin, callback) {
+    // No Origin: mobile apps, webhooks, health checks, server-to-server (not browser CORS)
     if (!origin) {
       return callback(null, true);
     }
+
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
+
     logger.warn(`Blocked CORS Origin: ${origin}`);
     return callback(new Error("CORS not allowed"));
   },
@@ -47,6 +50,24 @@ export const createApp = (): express.Application => {
 
   applySecurityMiddleware(app);
 
+  app.get("/health", (_req, res) => {
+    const dbConnected = mongoose.connection.readyState === 1;
+
+    res.status(dbConnected ? 200 : 503).json({
+      success: dbConnected,
+      message: dbConnected
+        ? "Gravil Backend Running Successfully"
+        : "Database unavailable",
+      database: dbConnected ? "connected" : "disconnected",
+    });
+  });
+
+  app.use(
+    "/api/v1/orders/webhook",
+    express.raw({ type: "application/json" }),
+    cashfreeWebhookRouter,
+  );
+
   app.use(cookieParser());
 
   app.use(cors(corsOptions));
@@ -58,16 +79,6 @@ export const createApp = (): express.Application => {
     logger.info(`GRAVIL BACKEND REQUEST => ${req.method} ${req.originalUrl}`);
     next();
   });
-
-  /**
-   * Cashfree webhook must receive the raw body for signature verification.
-   * Mount BEFORE express.json().
-   */
-  app.use(
-    "/api/v1/orders/webhook",
-    express.raw({ type: "application/json" }),
-    cashfreeWebhookRouter,
-  );
 
   app.use(express.json());
 
@@ -82,18 +93,6 @@ export const createApp = (): express.Application => {
       }),
     );
   }
-
-  app.get("/health", (_req, res) => {
-    const dbConnected = mongoose.connection.readyState === 1;
-
-    res.status(dbConnected ? 200 : 503).json({
-      success: dbConnected,
-      message: dbConnected
-        ? "Gravil Backend Running Successfully"
-        : "Database unavailable",
-      database: dbConnected ? "connected" : "disconnected",
-    });
-  });
 
   app.use("/api/v1", v1Router);
 

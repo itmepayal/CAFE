@@ -13,6 +13,8 @@ vi.mock("../src/modules/auth/auth.repository", () => ({
   findUserByProviderIdOrEmail: vi.fn(),
   createGoogleUser: vi.fn(),
   createAppleUser: vi.fn(),
+  createAdminGoogleUser: vi.fn(),
+  createAdminAppleUser: vi.fn(),
   updateUserSession: vi.fn((user) => Promise.resolve(user)),
 }));
 
@@ -25,10 +27,16 @@ vi.mock("../src/modules/auth/auth.tokens", () => ({
 }));
 
 import { verifyGoogleToken } from "../src/providers/google.provider";
-import { findUserByProviderIdOrEmail, createGoogleUser } from "../src/modules/auth/auth.repository";
+import {
+  findUserByProviderIdOrEmail,
+  createGoogleUser,
+  createAdminGoogleUser,
+} from "../src/modules/auth/auth.repository";
 import {
   loginExistingUserWithProvider,
   loginWithProvider,
+  loginOrSignUpAdminWithProvider,
+  loginOrSignUpCafeOwnerWithProvider,
 } from "../src/modules/auth/social-auth.core";
 
 describe("social-auth.core", () => {
@@ -133,5 +141,84 @@ describe("social-auth.core", () => {
 
     expect(result.user.role).toBe("cafe_owner");
     expect(createGoogleUser).not.toHaveBeenCalled();
+  });
+
+  it("loginOrSignUpAdminWithProvider creates super_admin when user does not exist", async () => {
+    vi.mocked(verifyGoogleToken).mockResolvedValue({
+      providerId: "google-sub-5",
+      email: "admin@example.com",
+      name: "Admin",
+      profileImage: "",
+      emailVerified: true,
+    });
+
+    vi.mocked(findUserByProviderIdOrEmail).mockResolvedValue(null);
+
+    const createdAdmin = {
+      _id: "admin-1",
+      email: "admin@example.com",
+      role: "super_admin",
+      isBlocked: false,
+    } as any;
+
+    vi.mocked(createAdminGoogleUser).mockResolvedValue(createdAdmin);
+
+    const result = await loginOrSignUpAdminWithProvider(
+      "google",
+      "valid-google-token",
+    );
+
+    expect(createAdminGoogleUser).toHaveBeenCalledOnce();
+    expect(result.user.role).toBe("super_admin");
+  });
+
+  it("loginOrSignUpCafeOwnerWithProvider creates student when user does not exist", async () => {
+    vi.mocked(verifyGoogleToken).mockResolvedValue({
+      providerId: "google-sub-6",
+      email: "owner@example.com",
+      name: "Owner",
+      profileImage: "",
+      emailVerified: true,
+    });
+
+    vi.mocked(findUserByProviderIdOrEmail).mockResolvedValue(null);
+
+    const createdStudent = {
+      _id: "owner-1",
+      email: "owner@example.com",
+      role: "student",
+      isBlocked: false,
+    } as any;
+
+    vi.mocked(createGoogleUser).mockResolvedValue(createdStudent);
+
+    const result = await loginOrSignUpCafeOwnerWithProvider(
+      "google",
+      "valid-google-token",
+    );
+
+    expect(createGoogleUser).toHaveBeenCalledOnce();
+    expect(result.user.role).toBe("student");
+  });
+
+  it("loginOrSignUpCafeOwnerWithProvider rejects super_admin portal misuse", async () => {
+    vi.mocked(verifyGoogleToken).mockResolvedValue({
+      providerId: "google-sub-7",
+      email: "admin@example.com",
+      name: "Admin",
+      profileImage: "",
+      emailVerified: true,
+    });
+
+    vi.mocked(findUserByProviderIdOrEmail).mockResolvedValue({
+      _id: "admin-2",
+      email: "admin@example.com",
+      role: "super_admin",
+      isBlocked: false,
+    } as any);
+
+    await expect(
+      loginOrSignUpCafeOwnerWithProvider("google", "valid-google-token"),
+    ).rejects.toThrow("Please use the admin login portal");
   });
 });

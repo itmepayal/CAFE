@@ -13,8 +13,6 @@ export interface RateOrderInput {
   review?: string;
 }
 
-export const PAYMENT_METHODS = ["upi", "card", "wallet", "cash"] as const;
-
 export const ORDER_TYPES = ["pickup", "delivery"] as const;
 
 export interface CreateOrderItemInput {
@@ -30,8 +28,6 @@ export interface CreateOrderInput {
   paymentMethod: string;
   notes?: string;
   taxRate?: number;
-  discountAmount?: number;
-
   orderType?: (typeof ORDER_TYPES)[number];
   deliveryAddress?: IDeliveryAddress;
 }

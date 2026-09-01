@@ -49,20 +49,8 @@ const validateProviderTokens = (
   }
 };
 
-const providerLoginBodySchema = providerFieldsSchema.superRefine(
-  validateProviderTokens,
-);
-
 export const adminLoginSchema = z.object({
-  body: providerLoginBodySchema,
-});
-
-export const adminRegisterSchema = z.object({
-  body: providerFieldsSchema
-    .extend({
-      inviteToken: z.string().min(1, "Admin invite token is required"),
-    })
-    .superRefine(validateProviderTokens),
+  body: providerFieldsSchema.superRefine(validateProviderTokens),
 });
 
 export const createAdminInviteSchema = z.object({

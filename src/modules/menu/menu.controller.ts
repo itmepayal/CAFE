@@ -14,8 +14,6 @@ export const getCafeMenuController = async (
   try {
     const { cafeId } = req.params;
 
-    console.log(cafeId);
-
     const menuItems = await getCafeMenuService(cafeId);
 
     res.status(200).json({

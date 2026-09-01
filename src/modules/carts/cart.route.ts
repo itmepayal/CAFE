@@ -9,6 +9,12 @@ import {
 } from "./cart.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
+import { validate } from "../../middlewares/validate.middleware";
+import {
+  addToCartSchema,
+  updateCartItemSchema,
+  cartItemParamSchema,
+} from "./cart.validation";
 
 const cartRouter = Router();
 
@@ -53,7 +59,7 @@ const cartRouter = Router();
  *       401:
  *         description: Unauthorized
  */
-cartRouter.post("/", authenticate, addToCartController);
+cartRouter.post("/", authenticate, validate(addToCartSchema), addToCartController);
 
 /**
  * @swagger
@@ -106,7 +112,12 @@ cartRouter.get("/", authenticate, getCartController);
  *       404:
  *         description: Cart item not found
  */
-cartRouter.patch("/:cartItemId", authenticate, updateCartItemController);
+cartRouter.patch(
+  "/:cartItemId",
+  authenticate,
+  validate(updateCartItemSchema),
+  updateCartItemController,
+);
 
 /**
  * @swagger
@@ -130,7 +141,12 @@ cartRouter.patch("/:cartItemId", authenticate, updateCartItemController);
  *       404:
  *         description: Cart item not found
  */
-cartRouter.delete("/:cartItemId", authenticate, removeCartItemController);
+cartRouter.delete(
+  "/:cartItemId",
+  authenticate,
+  validate(cartItemParamSchema),
+  removeCartItemController,
+);
 
 /**
  * @swagger

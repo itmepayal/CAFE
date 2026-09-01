@@ -1,12 +1,14 @@
 import { IUser } from "../../models/user";
 import { verifyGoogleToken } from "../../providers/google.provider";
 import { verifyAppleToken } from "../../providers/apple.provider";
-import { UnauthorizedError } from "../../utils/errors/app.error";
+import { UnauthorizedError, ConflictError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
 import {
   findUserByProviderIdOrEmail,
   createGoogleUser,
   createAppleUser,
+  createAdminGoogleUser,
+  createAdminAppleUser,
   updateUserSession,
 } from "./auth.repository";
 import { issueAuthTokens, AuthTokensResult } from "./auth.tokens";
@@ -77,22 +79,35 @@ export const findOrCreateStudent = async (
 ): Promise<IUser> => {
   let user = await findExistingUser(profile);
 
-  if (!user) {
-    logger.info(`Creating new student via ${profile.provider} login: ${profile.email}`);
-
-    if (profile.provider === "google") {
-      user = await createGoogleUser({
-        name: profile.name ?? "User",
-        email: profile.email,
-        profileImage: profile.profileImage,
-        providerId: profile.providerId,
-      });
-    } else {
-      user = await createAppleUser({
-        email: profile.email,
-        providerId: profile.providerId,
-      });
+  if (user) {
+    if (
+      user.provider !== profile.provider &&
+      user.providerId !== profile.providerId
+    ) {
+      throw new ConflictError(
+        `This email is already registered with ${user.provider}. Please sign in using ${user.provider}.`,
+      );
     }
+
+    return user;
+  }
+
+  logger.info(
+    `Creating new student via ${profile.provider} login: ${profile.email}`,
+  );
+
+  if (profile.provider === "google") {
+    user = await createGoogleUser({
+      name: profile.name ?? "User",
+      email: profile.email,
+      profileImage: profile.profileImage,
+      providerId: profile.providerId,
+    });
+  } else {
+    user = await createAppleUser({
+      email: profile.email,
+      providerId: profile.providerId,
+    });
   }
 
   return user;
@@ -153,4 +168,74 @@ export const loginExistingUserWithProvider = async (
   }
 
   return authenticateUser(user, options);
+};
+
+export const findOrCreateAdmin = async (
+  profile: ProviderProfile,
+): Promise<IUser> => {
+  let user = await findExistingUser(profile);
+
+  if (user) {
+    if (
+      user.provider !== profile.provider &&
+      user.providerId !== profile.providerId
+    ) {
+      throw new ConflictError(
+        `This email is already registered with ${user.provider}. Please sign in using ${user.provider}.`,
+      );
+    }
+
+    return user;
+  }
+
+  logger.info(
+    `Creating new super_admin via ${profile.provider} login: ${profile.email}`,
+  );
+
+  if (profile.provider === "google") {
+    user = await createAdminGoogleUser({
+      name: profile.name ?? "Admin",
+      email: profile.email,
+      profileImage: profile.profileImage,
+      providerId: profile.providerId,
+    });
+  } else {
+    user = await createAdminAppleUser({
+      email: profile.email,
+      providerId: profile.providerId,
+      name: profile.name,
+    });
+  }
+
+  return user;
+};
+
+export const loginOrSignUpAdminWithProvider = async (
+  provider: Provider,
+  token?: string,
+  identityToken?: string,
+): Promise<AuthTokensResult> => {
+  const profile = await verifyProviderToken(provider, token, identityToken);
+  const user = await findOrCreateAdmin(profile);
+  return authenticateUser(user, { expectedRole: "super_admin" });
+};
+
+export const loginOrSignUpCafeOwnerWithProvider = async (
+  provider: Provider,
+  token?: string,
+  identityToken?: string,
+): Promise<AuthTokensResult> => {
+  const profile = await verifyProviderToken(provider, token, identityToken);
+  const existingUser = await findExistingUser(profile);
+
+  if (existingUser) {
+    if (existingUser.role === "super_admin") {
+      throw new UnauthorizedError("Please use the admin login portal");
+    }
+
+    return authenticateUser(existingUser);
+  }
+
+  const user = await findOrCreateStudent(profile);
+  return authenticateUser(user);
 };

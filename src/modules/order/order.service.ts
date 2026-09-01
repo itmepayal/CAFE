@@ -38,6 +38,7 @@ import {
   createCashfreeOrder,
   verifyCashfreeOrder,
 } from "../../config/cashfree.config";
+import { processOrderRefund } from "../payment/refund.service";
 
 const DEFAULT_DELIVERY_CHARGE = 29;
 
@@ -56,10 +57,11 @@ export const createOrderService = async (
     paymentMethod,
     notes = "",
     taxRate = 0.05,
-    discountAmount = 0,
     orderType = "pickup",
     deliveryAddress,
   } = input;
+
+  const discountAmount = 0;
 
   if (!items || items.length === 0) {
     throw new BadRequestError("Order must contain at least one item.");
@@ -363,12 +365,18 @@ export const cancelOrderService = async (
   }
 
   const shouldRefund = order.paymentStatus === "paid";
+  let refunded = false;
+
+  if (shouldRefund) {
+    const refundResult = await processOrderRefund(order, cancellationReason);
+    refunded = refundResult.refunded;
+  }
 
   const cancelledOrder = await cancelOrderRepo(
     orderId,
     "student",
     cancellationReason,
-    shouldRefund,
+    refunded,
   );
 
   logger.info("Order cancelled by student", {
@@ -376,7 +384,7 @@ export const cancelOrderService = async (
     cancelledBy: "student",
     reason: cancellationReason,
     previousStatus: order.status,
-    refunded: shouldRefund,
+    refunded,
   });
 
   emitOrderCancelled(studentId, {
@@ -388,8 +396,8 @@ export const cancelOrderService = async (
   emitStatusUpdate(studentId, {
     orderId,
     status: "cancelled",
-    message: shouldRefund
-      ? "Your order has been cancelled. Refund will be processed shortly."
+    message: refunded
+      ? "Your order has been cancelled. Refund has been initiated."
       : STATUS_MESSAGES.cancelled,
   });
 

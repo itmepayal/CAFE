@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../utils/handlers/async.handler";
+import { extractRefreshToken } from "../../utils/auth/extract-token";
+import { sendAuthResponse } from "../../utils/response/auth.response";
 
 import {
   googleLogin,
@@ -8,129 +10,59 @@ import {
   changeProfile,
   refreshTokens,
   adminLogin,
-  adminRegister,
   cafeOwnerLogin,
   logout,
 } from "./auth.service";
 
-import { setAuthCookies } from "../../utils/cookies/cookie.utils";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
-/**
- * =========================================================
- * GOOGLE LOGIN
- * =========================================================
- */
 export const googleLoginController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { token } = req.body;
-
-    const result = await googleLogin({
-      token,
-    });
-
-    setAuthCookies(res, {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
-
-    res.status(200).json({
-      success: true,
+    const result = await googleLogin({ token: req.body.token });
+    sendAuthResponse({
+      res,
       message: "Google login successful",
-      data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-      },
+      tokens: result,
     });
   },
 );
 
-/**
- * =========================================================
- * APPLE LOGIN
- * =========================================================
- */
 export const appleLoginController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { identityToken } = req.body;
-
-    const result = await appleLogin({
-      identityToken,
-    });
-
-    setAuthCookies(res, {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
-
-    res.status(200).json({
-      success: true,
+    const result = await appleLogin({ identityToken: req.body.identityToken });
+    sendAuthResponse({
+      res,
       message: "Apple login successful",
-      data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-      },
+      tokens: result,
     });
   },
 );
 
-/**
- * =========================================================
- * GET CURRENT USER
- * =========================================================
- */
 export const getCurrentUserController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user?.id as string;
-
-    const user = await getCurrentUser(userId);
-
-    res.status(200).json({
-      success: true,
-      data: user,
-    });
+    const user = await getCurrentUser(req.user!.id);
+    res.status(200).json({ success: true, data: user });
   },
 );
 
-/**
- * =========================================================
- * LOGOUT
- * =========================================================
- */
 export const logoutController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const refreshToken = req.cookies?.refreshToken ?? req.body?.refreshToken;
-
-    await logout(refreshToken);
-
+    await logout(extractRefreshToken(req));
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
-
-    res.status(200).json({
-      success: true,
-      message: "Logout successful",
-    });
+    res.status(200).json({ success: true, message: "Logout successful" });
   },
 );
 
-/**
- * =========================================================
- * CHANGE PROFILE
- * =========================================================
- */
 export const changeProfileController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user!.id;
-
     let profileImage: string | undefined;
 
     if (req.file) {
       profileImage = await uploadToCloudinary(req.file.path, "users");
     }
 
-    const user = await changeProfile(userId, {
+    const user = await changeProfile(req.user!.id, {
       ...req.body,
       profileImage,
     });
@@ -143,129 +75,48 @@ export const changeProfileController = asyncHandler(
   },
 );
 
-/**
- * =========================================================
- * REFRESH TOKENS
- * =========================================================
- */
 export const refreshTokenController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const refreshToken = req.cookies?.refreshToken ?? req.body?.refreshToken;
-
     const result = await refreshTokens({
-      refreshToken,
+      refreshToken: extractRefreshToken(req) ?? "",
     });
 
-    setAuthCookies(res, {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
-
-    res.status(200).json({
-      success: true,
+    sendAuthResponse({
+      res,
       message: "Token refreshed successfully",
-      data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-      },
+      tokens: result,
     });
   },
 );
 
-/**
- * =========================================================
- * ADMIN LOGIN
- * =========================================================
- */
 export const adminLoginController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { provider, token, identityToken } = req.body;
-
     const result = await adminLogin({
-      provider,
-      token,
-      identityToken,
+      provider: req.body.provider,
+      token: req.body.token,
+      identityToken: req.body.identityToken,
     });
 
-    setAuthCookies(res, {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
-
-    res.status(200).json({
-      success: true,
+    sendAuthResponse({
+      res,
       message: "Admin login successful",
-      data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-      },
+      tokens: result,
     });
   },
 );
 
-/**
- * =========================================================
- * ADMIN REGISTER
- * =========================================================
- */
-export const adminRegisterController = asyncHandler(
-  async (req: Request, res: Response): Promise<void> => {
-    const { provider, token, identityToken } = req.body;
-
-    const result = await adminRegister({
-      provider,
-      token,
-      identityToken,
-      inviteToken: req.body.inviteToken,
-    });
-
-    setAuthCookies(res, {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Admin registration successful",
-      data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-      },
-    });
-  },
-);
-
-/**
- * =========================================================
- * CAFE OWNER LOGIN
- * =========================================================
- */
 export const cafeOwnerLoginController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { provider, token, identityToken } = req.body;
-
     const result = await cafeOwnerLogin({
-      provider,
-      token,
-      identityToken,
+      provider: req.body.provider,
+      token: req.body.token,
+      identityToken: req.body.identityToken,
     });
 
-    setAuthCookies(res, {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
-
-    res.status(200).json({
-      success: true,
+    sendAuthResponse({
+      res,
       message: "Cafe owner login successful",
-      data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-      },
+      tokens: result,
     });
   },
 );

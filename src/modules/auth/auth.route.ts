@@ -8,7 +8,6 @@ import {
   changeProfileController,
   refreshTokenController,
   adminLoginController,
-  adminRegisterController,
   cafeOwnerLoginController,
 } from "./auth.controller";
 
@@ -20,7 +19,6 @@ import {
   googleLoginSchema,
   appleLoginSchema,
   adminLoginSchema,
-  adminRegisterSchema,
 } from "./auth.validation";
 
 export const authRouter = Router();
@@ -190,101 +188,12 @@ authRouter.post("/refresh-token", refreshTokenController);
 
 /**
  * @swagger
- * /auth/admin/register:
- *   post:
- *     summary: Register as admin using Google or Apple
- *     description: >
- *       Creates a new super_admin account using Google or Apple authentication.
- *       Requires a valid inviteToken from an existing super_admin (or ADMIN_BOOTSTRAP_TOKEN
- *       for the very first admin). The role is never accepted from the client.
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - provider
- *               - inviteToken
- *             properties:
- *               provider:
- *                 type: string
- *                 enum:
- *                   - google
- *                   - apple
- *                 example: google
- *               inviteToken:
- *                 type: string
- *                 description: Invite token from POST /admin/invites or ADMIN_BOOTSTRAP_TOKEN for first admin
- *                 example: a1b2c3d4e5f6...
- *               token:
- *                 type: string
- *                 description: Required when provider is "google"
- *                 example: eyJhbGciOiJSUzI1NiIs...
- *               identityToken:
- *                 type: string
- *                 description: Required when provider is "apple"
- *                 example: eyJraWQiOiJ...
- *     responses:
- *       201:
- *         description: Admin registration successful and cookies set
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Admin registration successful
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       type: object
- *                       properties:
- *                         _id:
- *                           type: string
- *                           example: 665c12345678901234567890
- *                         name:
- *                           type: string
- *                           example: Payal Patel
- *                         email:
- *                           type: string
- *                           example: admin@example.com
- *                         role:
- *                           type: string
- *                           example: super_admin
- *                     accessToken:
- *                       type: string
- *                       example: eyJhbGciOiJIUzI1NiIs...
- *                     refreshToken:
- *                       type: string
- *                       example: eyJhbGciOiJIUzI1NiIs...
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Invalid provider token, missing email, or unsupported provider
- *       409:
- *         description: Account already exists
- */
-authRouter.post(
-  "/admin/register",
-  validate(adminRegisterSchema),
-  adminRegisterController,
-);
-
-/**
- * @swagger
  * /auth/admin/login:
  *   post:
- *     summary: Login as admin using Google or Apple
+ *     summary: Login or sign up as super admin using Google or Apple
  *     description: >
- *       Authenticates an existing super_admin using Google or Apple.
- *       Does not auto-create accounts. Login is allowed only when the user's role is super_admin.
+ *       Verifies Google or Apple token and auto-registers a new super_admin if the account
+ *       does not exist. Existing super_admin accounts are logged in directly.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -325,11 +234,12 @@ authRouter.post(
  * @swagger
  * /auth/cafe-owner/login:
  *   post:
- *     summary: Login as cafe owner using Google or Apple
+ *     summary: Login or sign up as cafe owner using Google or Apple
  *     description: >
- *       Authenticates an existing cafe_owner using Google or Apple.
- *       Does not auto-create accounts. Cafe owner role is granted only after admin approves
- *       cafe registration via PATCH /admin/cafes/{id}/approve.
+ *       Verifies Google or Apple token and auto-registers a new student account if the user
+ *       does not exist. Existing cafe_owner and student accounts are logged in directly.
+ *       After sign-up, complete cafe registration via POST /cafes/register. Admin approval
+ *       promotes the user to cafe_owner via PATCH /admin/cafes/{id}/approve.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -355,7 +265,7 @@ authRouter.post(
  *       200:
  *         description: Cafe owner login successful and cookies set
  *       401:
- *         description: Invalid token or user is not a cafe_owner
+ *         description: Invalid token or user used the wrong portal
  */
 authRouter.post(
   "/cafe-owner/login",

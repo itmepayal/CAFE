@@ -15,6 +15,7 @@ import {
   getOrderStatsRepo,
 } from "./admin.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
+import { processOrderRefund } from "../payment/refund.service";
 
 /**
  * =========================================================
@@ -214,6 +215,8 @@ export const refundOrderService = async (orderId: string) => {
   if (order.paymentStatus !== "paid") {
     throw new BadRequestError("Only paid orders can be refunded.");
   }
+
+  await processOrderRefund(order, "Admin initiated refund");
 
   order.paymentStatus = "refunded";
   return saveOrderRepo(order);

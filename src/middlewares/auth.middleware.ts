@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 
 import { serverConfig } from "../config";
 import { UnauthorizedError, ForbiddenError } from "../utils/errors/app.error";
+import { extractAccessToken } from "../utils/auth/extract-token";
 
 interface JwtPayload {
   sub: string;
@@ -17,7 +18,7 @@ export const authenticate = (
   next: NextFunction,
 ): void => {
   try {
-    const token = req.cookies?.accessToken;
+    const token = extractAccessToken(req);
 
     if (!token) {
       throw new UnauthorizedError("Authentication required");

@@ -2,16 +2,12 @@ import { IUser } from "../../models/user";
 import { verifyRefreshToken } from "../../utils/jwt/token.jwt";
 import { UnauthorizedError } from "../../utils/errors/app.error";
 import {
-  findUserByProviderIdOrEmail,
   findUserById,
   updateProfileRepo,
-  createAdminAppleUser,
-  createAdminGoogleUser,
 } from "./auth.repository";
 import { logger } from "../../config/logger.config";
 import {
   AdminLoginPayload,
-  AdminRegisterPayload,
   RefreshTokenPayload,
   UpdateProfilePayload,
 } from "./auth.type";
@@ -21,14 +17,9 @@ import {
   AuthTokensResult,
 } from "./auth.tokens";
 import {
-  validateAndConsumeAdminInvite,
-  markInviteUsedBy,
-} from "../admin/admin-invite.service";
-import {
-  verifyProviderToken,
   loginWithProvider,
-  loginExistingUserWithProvider,
-  authenticateUser,
+  loginOrSignUpAdminWithProvider,
+  loginOrSignUpCafeOwnerWithProvider,
 } from "./social-auth.core";
 
 interface GoogleLoginPayload {
@@ -142,65 +133,14 @@ export const adminLogin = async ({
 }: AdminLoginPayload): Promise<AuthResponse> => {
   logger.info(`Admin login attempt via ${provider}`);
 
-  const result = await loginExistingUserWithProvider(
+  const result = await loginOrSignUpAdminWithProvider(
     provider,
     token,
     identityToken,
-    { expectedRole: "super_admin" },
   );
 
   logger.info(`Admin login successful for user: ${result.user._id}`);
   return result;
-};
-
-export const adminRegister = async ({
-  provider,
-  token,
-  identityToken,
-  inviteToken,
-}: AdminRegisterPayload): Promise<AuthResponse> => {
-  if (!inviteToken) {
-    throw new UnauthorizedError("Admin invite token is required");
-  }
-
-  logger.info(`Admin registration attempt via ${provider}`);
-
-  const profile = await verifyProviderToken(provider, token, identityToken);
-
-  await validateAndConsumeAdminInvite(inviteToken, profile.email);
-
-  const existingUser = await findUserByProviderIdOrEmail(
-    profile.providerId,
-    profile.email,
-  );
-
-  if (existingUser) {
-    throw new UnauthorizedError("An account already exists with this email");
-  }
-
-  let user: IUser;
-
-  if (profile.provider === "google") {
-    user = await createAdminGoogleUser({
-      name: profile.name ?? "Admin",
-      email: profile.email,
-      profileImage: profile.profileImage,
-      providerId: profile.providerId,
-    });
-  } else {
-    user = await createAdminAppleUser({
-      email: profile.email,
-      providerId: profile.providerId,
-      name: profile.name,
-    });
-  }
-
-  await markInviteUsedBy(inviteToken, user._id.toString());
-
-  const tokens = await authenticateUser(user);
-
-  logger.info(`Admin registration successful: ${user._id}`);
-  return tokens;
 };
 
 export const cafeOwnerLogin = async ({
@@ -210,11 +150,10 @@ export const cafeOwnerLogin = async ({
 }: AdminLoginPayload): Promise<AuthResponse> => {
   logger.info(`Cafe owner login attempt via ${provider}`);
 
-  const result = await loginExistingUserWithProvider(
+  const result = await loginOrSignUpCafeOwnerWithProvider(
     provider,
     token,
     identityToken,
-    { expectedRole: "cafe_owner" },
   );
 
   logger.info(`Cafe owner login successful for user: ${result.user._id}`);

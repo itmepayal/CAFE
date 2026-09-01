@@ -84,3 +84,35 @@ export const verifyCashfreeWebhookSignature = (
 
   return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 };
+
+export const createCashfreeRefund = async (payload: {
+  orderId: string;
+  refundAmount: number;
+  refundId: string;
+  refundNote?: string;
+}) => {
+  const response = await fetch(
+    `${CASHFREE_BASE_URL}/orders/${encodeURIComponent(payload.orderId)}/refunds`,
+    {
+      method: "POST",
+      headers: {
+        ...cashfreeHeaders,
+        "x-idempotency-key": payload.refundId,
+      },
+      body: JSON.stringify({
+        refund_amount: payload.refundAmount,
+        refund_id: payload.refundId,
+        refund_note: payload.refundNote ?? "Order refund",
+        refund_speed: "STANDARD",
+      }),
+    },
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Cashfree refund creation failed");
+  }
+
+  return data;
+};

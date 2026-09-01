@@ -35,6 +35,7 @@ import {
   ORDER_AUTO_CANCEL_MINUTES,
   ORDER_STATUS_TRANSITIONS,
 } from "../../constants";
+import { processOrderRefund } from "../payment/refund.service";
 import { logger } from "../../config/logger.config";
 import { cancelOrderRepo } from "../order/order.repository";
 import { findOrderByIdRepo } from "../order/order.repository";
@@ -787,8 +788,6 @@ export const acceptOrderService = async (
 ): Promise<IOrder> => {
   const { order } = await getOwnedOrderForApprovedCafe(orderId, userId);
 
-  console.log(order);
-
   const updatedOrder = await transitionOrderStatus(order, "accepted", {
     ...(estimatedReadyTime ? { estimatedReadyTime } : {}),
   });
@@ -832,25 +831,31 @@ export const rejectOrderService = async (
   }
 
   const shouldRefund = order.paymentStatus === "paid";
+  let refunded = false;
+
+  if (shouldRefund) {
+    const refundResult = await processOrderRefund(order, rejectionReason);
+    refunded = refundResult.refunded;
+  }
 
   const updatedOrder = await transitionOrderStatus(order, "rejected", {
     cancelledBy: "cafe",
     cancellationReason: rejectionReason,
-    ...(shouldRefund ? { paymentStatus: "refunded" } : {}),
+    ...(refunded ? { paymentStatus: "refunded" } : {}),
   });
 
   logger.info("Order rejected by cafe", {
     orderId,
     cafeId: order.cafeId,
     reason: rejectionReason,
-    refunded: shouldRefund,
+    refunded,
   });
 
   emitStatusUpdate(order.studentId.toString(), {
     orderId,
     status: "rejected",
-    message: shouldRefund
-      ? "Your order was rejected by the cafe. Refund will be processed shortly."
+    message: refunded
+      ? "Your order was rejected by the cafe. Refund has been initiated."
       : "Your order was rejected by the cafe.",
   });
 

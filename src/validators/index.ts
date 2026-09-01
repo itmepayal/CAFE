@@ -39,7 +39,7 @@ export const validateQueryParams = (schema: AnyZodObject) => {
         try {
 
             await schema.parseAsync(req.query);
-            console.log("Query params are valid");
+            logger.debug("Query params are valid");
             next();
 
         } catch (error) {

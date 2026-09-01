@@ -9,6 +9,13 @@ import {
 } from "./order.controller";
 
 import { authenticate, authorize } from "../../middlewares/auth.middleware";
+import { validate } from "../../middlewares/validate.middleware";
+import {
+  createOrderSchema,
+  cancelOrderSchema,
+  rateOrderSchema,
+  orderNumberParamSchema,
+} from "./order.validation";
 
 const orderRouter = Router();
 
@@ -283,6 +290,7 @@ orderRouter.post(
   "/",
   authenticate,
   authorize("student"),
+  validate(createOrderSchema),
   createOrderController,
 );
 
@@ -361,6 +369,7 @@ orderRouter.get(
   "/by-number/:orderNumber",
   authenticate,
   authorize("student"),
+  validate(orderNumberParamSchema),
   getOrderByNumberController,
 );
 
@@ -406,6 +415,7 @@ orderRouter.get(
   "/:orderNumber/verify-payment",
   authenticate,
   authorize("student"),
+  validate(orderNumberParamSchema),
   verifyOrderPaymentController,
 );
 
@@ -474,6 +484,7 @@ orderRouter.post(
   "/:orderId/rate",
   authenticate,
   authorize("student"),
+  validate(rateOrderSchema),
   rateOrderController,
 );
 
@@ -551,6 +562,7 @@ orderRouter.patch(
   "/:orderId/cancellation",
   authenticate,
   authorize("student"),
+  validate(cancelOrderSchema),
   cancelOrderController,
 );
 
