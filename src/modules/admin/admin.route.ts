@@ -14,6 +14,8 @@ import {
   forceCancelOrderController,
   refundOrderController,
   getOrderStatsController,
+  createAdminInviteController,
+  listAdminInvitesController,
 } from "./admin.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
@@ -23,6 +25,7 @@ import {
   getAllComplaintsSchema,
   updateComplaintActionSchema,
 } from "./admin.validation";
+import { createAdminInviteSchema } from "../auth/auth.validation";
 
 const adminRouter = Router();
 
@@ -658,6 +661,21 @@ adminRouter.patch(
   authenticate,
   authorize("super_admin"),
   refundOrderController,
+);
+
+adminRouter.post(
+  "/invites",
+  authenticate,
+  authorize("super_admin"),
+  validate(createAdminInviteSchema),
+  createAdminInviteController,
+);
+
+adminRouter.get(
+  "/invites",
+  authenticate,
+  authorize("super_admin"),
+  listAdminInvitesController,
 );
 
 export default adminRouter;

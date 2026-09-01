@@ -35,7 +35,7 @@ export const createCashfreeOrder = async (payload: {
 
     order_meta: {
       return_url: `${process.env.CLIENT_URL}/order/status?order_id={order_id}`,
-      notify_url: `${process.env.SERVER_URL}/api/v1/orders/webhook/cashfree`,
+      notify_url: `${serverConfig.SERVER_URL}/api/v1/orders/webhook/cashfree`,
     },
   };
 
@@ -75,8 +75,12 @@ export const verifyCashfreeWebhookSignature = (
     .update(signedPayload)
     .digest("base64");
 
-  return crypto.timingSafeEqual(
-    Buffer.from(expectedSignature),
-    Buffer.from(signature),
-  );
+  const expectedBuffer = Buffer.from(expectedSignature);
+  const receivedBuffer = Buffer.from(signature);
+
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 };

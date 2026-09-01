@@ -6,7 +6,6 @@ import {
 } from "./cafe.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
-import User from "../../models/user";
 
 // =========================================
 // REGISTER CAFE
@@ -31,19 +30,7 @@ export const registerCafeService = async (userId: string, payload: any) => {
     supportsDelivery: payload.supportsDelivery ?? false,
   });
 
-  const user = await User.findById(userId).select("role");
-  const PROTECTED_ROLES = ["super_admin"];
-
-  if (user && !PROTECTED_ROLES.includes(user.role)) {
-    await User.findByIdAndUpdate(userId, { $set: { role: "cafe_owner" } });
-    logger.info(`User role updated to cafe_owner for ${userId}`);
-  } else {
-    logger.info(`Role unchanged for ${userId} (current role: ${user?.role})`);
-  }
-
-  logger.info(
-    `Cafe registered with id: ${cafe?._id}, user role updated to cafe_owner`,
-  );
+  logger.info(`Cafe registered with id: ${cafe?._id} (pending admin approval)`);
 
   return cafe;
 };

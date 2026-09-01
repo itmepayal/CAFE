@@ -193,42 +193,14 @@ export const createAdminGoogleUser = async (data: {
 export const createAdminAppleUser = async (data: {
   email: string;
   providerId: string;
+  name?: string;
 }): Promise<IUser> => {
   const user = await User.create({
+    name: data.name ?? "Admin",
     email: data.email,
     provider: "apple",
     providerId: data.providerId,
     role: "super_admin",
-    isBlocked: false,
-  });
-
-  return user;
-};
-
-export const createCafeOwnerGoogleUser = async (data: {
-  email: string;
-  providerId: string;
-}): Promise<IUser> => {
-  const user = await User.create({
-    email: data.email,
-    provider: "apple",
-    providerId: data.providerId,
-    role: "cafe_owner",
-    isBlocked: false,
-  });
-
-  return user;
-};
-
-export const createCafeOwnerAppleUser = async (data: {
-  email: string;
-  providerId: string;
-}): Promise<IUser> => {
-  const user = await User.create({
-    email: data.email,
-    provider: "apple",
-    providerId: data.providerId,
-    role: "cafe_owner",
     isBlocked: false,
   });
 

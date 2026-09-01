@@ -17,6 +17,10 @@ import {
 } from "./admin.service";
 import mongoose from "mongoose";
 import { cancelSpecificStaleOrderService } from "../owner/owner.service";
+import {
+  createAdminInviteService,
+  listAdminInvitesService,
+} from "./admin-invite.service";
 
 /**
  * =========================================================
@@ -380,6 +384,44 @@ export const getOrderStatsController = async (
     res.status(200).json({
       success: true,
       data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createAdminInviteController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const adminId = req.user!.id;
+    const { email } = req.body;
+
+    const invite = await createAdminInviteService(adminId, email);
+
+    res.status(201).json({
+      success: true,
+      message: "Admin invite created successfully",
+      data: invite,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listAdminInvitesController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const invites = await listAdminInvitesService();
+
+    res.status(200).json({
+      success: true,
+      data: invites,
     });
   } catch (error) {
     next(error);

@@ -331,8 +331,6 @@ export const cancelOrderService = async (
     throw new ForbiddenError("You are only allowed to cancel your own orders.");
   }
 
-  console.log(order.status);
-
   if (order.status === "cancelled") {
     throw new BadRequestError("This order has already been cancelled.");
   }

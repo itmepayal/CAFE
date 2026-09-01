@@ -10,7 +10,7 @@ import {
   adminLogin,
   adminRegister,
   cafeOwnerLogin,
-  cafeOwnerRegister,
+  logout,
 } from "./auth.service";
 
 import { setAuthCookies } from "../../utils/cookies/cookie.utils";
@@ -100,7 +100,11 @@ export const getCurrentUserController = asyncHandler(
  * =========================================================
  */
 export const logoutController = asyncHandler(
-  async (_req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
+    const refreshToken = req.cookies?.refreshToken ?? req.body?.refreshToken;
+
+    await logout(refreshToken);
+
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
 
@@ -214,6 +218,7 @@ export const adminRegisterController = asyncHandler(
       provider,
       token,
       identityToken,
+      inviteToken: req.body.inviteToken,
     });
 
     setAuthCookies(res, {
@@ -256,38 +261,6 @@ export const cafeOwnerLoginController = asyncHandler(
     res.status(200).json({
       success: true,
       message: "Cafe owner login successful",
-      data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-      },
-    });
-  },
-);
-
-/**
- * =========================================================
- * CAFE OWNER REGISTER
- * =========================================================
- */
-export const cafeOwnerRegisterController = asyncHandler(
-  async (req: Request, res: Response): Promise<void> => {
-    const { provider, token, identityToken } = req.body;
-
-    const result = await cafeOwnerRegister({
-      provider,
-      token,
-      identityToken,
-    });
-
-    setAuthCookies(res, {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Cafe owner registration successful",
       data: {
         user: result.user,
         accessToken: result.accessToken,

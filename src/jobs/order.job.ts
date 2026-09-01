@@ -7,6 +7,7 @@ export const startOrderAutoCancelJob = (): void => {
   cron.schedule("*/2 * * * *", async () => {
     try {
       await autoCancelStaleOrdersService();
+      await cleanupStaleOrdersJob();
     } catch (error) {
       logger.error("Order auto-cancel job failed", { error });
     }

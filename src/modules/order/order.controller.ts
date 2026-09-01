@@ -209,7 +209,9 @@ export const handleCashfreeWebhookController = async (
       return;
     }
 
-    const rawBody = req.body.toString();
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body.toString("utf8")
+      : JSON.stringify(req.body);
 
     if (!verifyCashfreeWebhookSignature(rawBody, timestamp, signature)) {
       res.status(401).json({

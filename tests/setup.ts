@@ -1,0 +1,15 @@
+process.env.NODE_ENV = "test";
+process.env.PORT = "5000";
+process.env.MONGODB_URI = "mongodb://localhost:27017/cafe-mart-test";
+process.env.JWT_ACCESS_SECRET = "test-access-secret";
+process.env.JWT_ACCESS_EXPIRES = "15m";
+process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
+process.env.JWT_REFRESH_EXPIRES = "30d";
+process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
+process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret";
+process.env.CLIENT_URL = "http://localhost:3000";
+process.env.API_BASE_URL = "http://localhost:5000";
+process.env.CASHFREE_APP_ID = "test-cashfree-app-id";
+process.env.CASHFREE_SECRET_KEY = "test-cashfree-secret";
+process.env.CASHFREE_ENV = "SANDBOX";
+process.env.SERVER_URL = "http://localhost:5000";

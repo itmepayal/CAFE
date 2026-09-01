@@ -48,7 +48,7 @@ export const authorize = (...allowedRoles: Role[]) => {
     const userRole = req.user?.role as Role | undefined;
 
     if (!userRole) {
-      throw new UnauthorizedError("No role found");
+      return next(new UnauthorizedError("No role found"));
     }
 
     if (userRole === "super_admin") {
@@ -56,7 +56,7 @@ export const authorize = (...allowedRoles: Role[]) => {
     }
 
     if (!allowedRoles.includes(userRole)) {
-      throw new ForbiddenError("Access denied");
+      return next(new ForbiddenError("Access denied"));
     }
 
     next();

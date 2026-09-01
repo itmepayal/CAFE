@@ -104,6 +104,9 @@ type ServerConfig = {
   CASHFREE_APP_ID: string;
   CASHFREE_SECRET_KEY: string;
   CASHFREE_ENV: string;
+
+  SERVER_URL: string;
+  ADMIN_BOOTSTRAP_TOKEN?: string;
 };
 
 /**
@@ -181,4 +184,8 @@ export const serverConfig: ServerConfig = {
   CASHFREE_APP_ID: process.env.CASHFREE_APP_ID as string,
   CASHFREE_SECRET_KEY: process.env.CASHFREE_SECRET_KEY as string,
   CASHFREE_ENV: process.env.CASHFREE_ENV as string,
+
+  SERVER_URL: process.env.SERVER_URL || process.env.API_BASE_URL || "",
+
+  ADMIN_BOOTSTRAP_TOKEN: process.env.ADMIN_BOOTSTRAP_TOKEN,
 };
