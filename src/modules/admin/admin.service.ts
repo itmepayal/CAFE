@@ -13,9 +13,22 @@ import {
   findOrderByIdRepo,
   saveOrderRepo,
   getOrderStatsRepo,
+  getDashboardStatsRepo,
+  getPaymentsRepo,
+  findAllCafesRepo,
+  findCafeByIdForAdminRepo,
 } from "./admin.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 import { processOrderRefund } from "../payment/refund.service";
+import {
+  emitAdminCafeUpdated,
+  notifyAdminPaymentUpdate,
+  toAdminPaymentPayload,
+} from "../../socket/admin";
+import {
+  getAdminSettlementsService,
+  settleSettlementService,
+} from "../settlement/settlement.service";
 
 /**
  * =========================================================
@@ -61,11 +74,14 @@ export const approveCafeService = async (
   cafe.approvedBy = adminId;
   cafe.approvedAt = new Date();
   cafe.adminNote = "";
+  cafe.isVisible = true;
 
   owner.role = "cafe_owner";
   owner.ownedCafe = cafe._id;
 
   await Promise.all([saveCafeRepo(cafe), saveUserRepo(owner)]);
+
+  emitAdminCafeUpdated(cafe, "approved");
 
   return cafe;
 };
@@ -90,10 +106,15 @@ export const rejectCafeService = async (cafeId: string, adminNote: string) => {
 
   cafe.status = "rejected";
   cafe.isApproved = false;
+  cafe.isVisible = false;
   cafe.adminNote = adminNote;
   cafe.rejectedAt = new Date();
 
-  return await saveCafeRepo(cafe);
+  const savedCafe = await saveCafeRepo(cafe);
+
+  emitAdminCafeUpdated(savedCafe, "rejected");
+
+  return savedCafe;
 };
 
 /**
@@ -109,7 +130,64 @@ export const toggleCafeBlockService = async (cafeId: string) => {
     );
   }
   cafe.isBlocked = !cafe.isBlocked;
-  return await saveCafeRepo(cafe);
+
+  if (cafe.isBlocked) {
+    cafe.isVisible = false;
+  }
+
+  const savedCafe = await saveCafeRepo(cafe);
+
+  emitAdminCafeUpdated(savedCafe, savedCafe.isBlocked ? "blocked" : "unblocked");
+
+  return savedCafe;
+};
+
+export const toggleCafeVisibilityService = async (cafeId: string) => {
+  const cafe = await findCafeByIdRepo(cafeId);
+
+  if (cafe.status !== "approved") {
+    throw new BadRequestError(
+      "Only approved cafes can have visibility changed.",
+    );
+  }
+
+  if (cafe.isBlocked) {
+    throw new BadRequestError(
+      "Blocked cafes cannot be shown. Unblock the cafe first.",
+    );
+  }
+
+  cafe.isVisible = !cafe.isVisible;
+  const savedCafe = await saveCafeRepo(cafe);
+
+  emitAdminCafeUpdated(savedCafe, "visibility_toggled");
+
+  return savedCafe;
+};
+
+export const toggleCafeOpenService = async (cafeId: string) => {
+  const cafe = await findCafeByIdRepo(cafeId);
+
+  if (cafe.status !== "approved") {
+    throw new BadRequestError("Only approved cafes can be opened or closed.");
+  }
+
+  if (cafe.isBlocked) {
+    throw new BadRequestError("Blocked cafes cannot be opened or closed.");
+  }
+
+  if (!cafe.isVisible) {
+    throw new BadRequestError(
+      "Hidden cafes cannot be opened or closed. Make the cafe visible first.",
+    );
+  }
+
+  cafe.isOpen = !cafe.isOpen;
+  const savedCafe = await saveCafeRepo(cafe);
+
+  emitAdminCafeUpdated(savedCafe, "open_toggled");
+
+  return savedCafe;
 };
 
 // =========================================
@@ -219,7 +297,14 @@ export const refundOrderService = async (orderId: string) => {
   await processOrderRefund(order, "Admin initiated refund");
 
   order.paymentStatus = "refunded";
-  return saveOrderRepo(order);
+  const savedOrder = await saveOrderRepo(order);
+
+  notifyAdminPaymentUpdate(
+    toAdminPaymentPayload(savedOrder),
+    "order_refunded",
+  );
+
+  return savedOrder;
 };
 
 // =========================================
@@ -227,4 +312,71 @@ export const refundOrderService = async (orderId: string) => {
 // =========================================
 export const getOrderStatsService = async () => {
   return getOrderStatsRepo();
+};
+
+// =========================================
+// ADMIN DASHBOARD
+// =========================================
+export const getDashboardStatsService = async () => {
+  return getDashboardStatsRepo();
+};
+
+// =========================================
+// ADMIN PAYMENTS
+// =========================================
+export const getPaymentsService = async (
+  paymentStatus?: string,
+  page: number = 1,
+  limit: number = 10,
+) => {
+  return getPaymentsRepo(paymentStatus, page, limit);
+};
+
+// =========================================
+// ADMIN — ALL CAFES
+// =========================================
+export const getAllCafesService = async (
+  filters: {
+    status?: string;
+    search?: string;
+    isBlocked?: boolean;
+    isVisible?: boolean;
+  },
+  page: number,
+  limit: number,
+) => {
+  const result = await findAllCafesRepo(filters, page, limit);
+
+  const cafes = result.cafes.map((cafe: any) => ({
+    ...cafe,
+    statusLabel: cafe.isOpen ? "OPEN" : "CLOSED",
+  }));
+
+  return { ...result, cafes };
+};
+
+// =========================================
+// ADMIN — CAFE BY ID
+// =========================================
+export const getCafeByIdForAdminService = async (cafeId: string) => {
+  return findCafeByIdForAdminRepo(cafeId);
+};
+
+// =========================================
+// ADMIN — SETTLEMENTS
+// =========================================
+export const getSettlementsService = async (
+  cafeId?: string,
+  status?: "pending" | "settled",
+  page: number = 1,
+  limit: number = 10,
+) => {
+  return getAdminSettlementsService({ cafeId, status, page, limit });
+};
+
+export const markSettlementAsSettledService = async (
+  settlementId: string,
+  adminId: string,
+) => {
+  return settleSettlementService(settlementId, adminId);
 };

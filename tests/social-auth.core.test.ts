@@ -35,7 +35,7 @@ import {
 import {
   loginExistingUserWithProvider,
   loginWithProvider,
-  loginOrSignUpAdminWithProvider,
+  loginAdminWithProvider,
   loginOrSignUpCafeOwnerWithProvider,
 } from "../src/modules/auth/social-auth.core";
 
@@ -143,7 +143,7 @@ describe("social-auth.core", () => {
     expect(createGoogleUser).not.toHaveBeenCalled();
   });
 
-  it("loginOrSignUpAdminWithProvider creates super_admin when user does not exist", async () => {
+  it("loginAdminWithProvider rejects unknown admin without invite", async () => {
     vi.mocked(verifyGoogleToken).mockResolvedValue({
       providerId: "google-sub-5",
       email: "admin@example.com",
@@ -154,22 +154,35 @@ describe("social-auth.core", () => {
 
     vi.mocked(findUserByProviderIdOrEmail).mockResolvedValue(null);
 
-    const createdAdmin = {
+    await expect(
+      loginAdminWithProvider("google", "valid-google-token"),
+    ).rejects.toThrow("Admin account not found");
+
+    expect(createAdminGoogleUser).not.toHaveBeenCalled();
+  });
+
+  it("loginAdminWithProvider logs in existing super_admin", async () => {
+    vi.mocked(verifyGoogleToken).mockResolvedValue({
+      providerId: "google-sub-5b",
+      email: "admin@example.com",
+      name: "Admin",
+      profileImage: "",
+      emailVerified: true,
+    });
+
+    vi.mocked(findUserByProviderIdOrEmail).mockResolvedValue({
       _id: "admin-1",
       email: "admin@example.com",
       role: "super_admin",
+      provider: "google",
+      providerId: "google-sub-5b",
       isBlocked: false,
-    } as any;
+    } as any);
 
-    vi.mocked(createAdminGoogleUser).mockResolvedValue(createdAdmin);
+    const result = await loginAdminWithProvider("google", "valid-google-token");
 
-    const result = await loginOrSignUpAdminWithProvider(
-      "google",
-      "valid-google-token",
-    );
-
-    expect(createAdminGoogleUser).toHaveBeenCalledOnce();
     expect(result.user.role).toBe("super_admin");
+    expect(createAdminGoogleUser).not.toHaveBeenCalled();
   });
 
   it("loginOrSignUpCafeOwnerWithProvider creates student when user does not exist", async () => {

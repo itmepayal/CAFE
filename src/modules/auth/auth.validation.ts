@@ -49,8 +49,36 @@ const validateProviderTokens = (
   }
 };
 
-export const adminLoginSchema = z.object({
+export const adminEmailLoginSchema = z.object({
+  body: z.object({
+    email: z.string().email("Valid admin email is required"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+  }),
+});
+
+export const adminEmailRegisterSchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(2).max(100),
+    email: z.string().email("Valid email is required"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(128),
+    inviteToken: z.string().min(1).optional(),
+  }),
+});
+
+export const cafeOwnerLoginSchema = z.object({
   body: providerFieldsSchema.superRefine(validateProviderTokens),
+});
+
+/** @deprecated Use adminEmailLoginSchema for admin portal */
+export const adminLoginSchema = z.object({
+  body: providerFieldsSchema
+    .extend({
+      inviteToken: z.string().min(1).optional(),
+    })
+    .superRefine(validateProviderTokens),
 });
 
 export const createAdminInviteSchema = z.object({

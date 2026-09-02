@@ -1,12 +1,16 @@
 import { IUser } from "../../models/user";
 import { verifyRefreshToken } from "../../utils/jwt/token.jwt";
-import { UnauthorizedError } from "../../utils/errors/app.error";
+import { UnauthorizedError, ConflictError } from "../../utils/errors/app.error";
 import {
   findUserById,
   updateProfileRepo,
+  findUserByEmailWithPassword,
+  createAdminEmailUser,
 } from "./auth.repository";
 import { logger } from "../../config/logger.config";
 import {
+  AdminEmailLoginPayload,
+  AdminEmailRegisterPayload,
   AdminLoginPayload,
   RefreshTokenPayload,
   UpdateProfilePayload,
@@ -18,9 +22,23 @@ import {
 } from "./auth.tokens";
 import {
   loginWithProvider,
-  loginOrSignUpAdminWithProvider,
+  loginAdminWithProvider,
   loginOrSignUpCafeOwnerWithProvider,
+  authenticateUser,
 } from "./social-auth.core";
+import {
+  validateAndConsumeAdminInvite,
+  markInviteUsedBy,
+} from "../admin/admin-invite.service";
+import { hashPassword, comparePassword } from "../../utils/auth/password";
+import { resolveCafeOwnerLoginMeta } from "./cafe-owner-auth.meta";
+
+export { resolveCafeOwnerLoginMeta } from "./cafe-owner-auth.meta";
+export type {
+  CafeOwnerLoginMeta,
+  CafeOwnerRegistrationStatus,
+  CafeOwnerRedirectTarget,
+} from "./cafe-owner-auth.meta";
 
 interface GoogleLoginPayload {
   token: string;
@@ -127,19 +145,81 @@ export const refreshTokens = async ({
 };
 
 export const adminLogin = async ({
+  email,
+  password,
+}: AdminEmailLoginPayload): Promise<AuthResponse> => {
+  logger.info(`Admin email login attempt: ${email}`);
+
+  const user = await findUserByEmailWithPassword(email);
+
+  if (!user?.passwordHash) {
+    throw new UnauthorizedError("Invalid email or password");
+  }
+
+  const passwordMatches = await comparePassword(password, user.passwordHash);
+
+  if (!passwordMatches) {
+    throw new UnauthorizedError("Invalid email or password");
+  }
+
+  const tokens = await authenticateUser(user, { expectedRole: "super_admin" });
+  logger.info(`Admin email login successful for user: ${user._id}`);
+  return tokens;
+};
+
+export const adminRegister = async ({
+  name,
+  email,
+  password,
+  inviteToken,
+}: AdminEmailRegisterPayload): Promise<AuthResponse> => {
+  logger.info(`Admin email registration attempt: ${email}`);
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const existingUser = await findUserByEmailWithPassword(normalizedEmail);
+
+  if (existingUser) {
+    throw new ConflictError("An account with this email already exists");
+  }
+
+  if (!inviteToken) {
+    throw new UnauthorizedError(
+      "Admin invite token is required for registration",
+    );
+  }
+
+  await validateAndConsumeAdminInvite(inviteToken, normalizedEmail);
+
+  const passwordHash = await hashPassword(password);
+  const user = await createAdminEmailUser({
+    name,
+    email: normalizedEmail,
+    passwordHash,
+  });
+
+  await markInviteUsedBy(inviteToken, user._id.toString());
+
+  const tokens = await authenticateUser(user, { expectedRole: "super_admin" });
+  logger.info(`Admin registered and logged in: ${user._id}`);
+  return tokens;
+};
+
+export const adminSocialLogin = async ({
   provider,
   token,
   identityToken,
+  inviteToken,
 }: AdminLoginPayload): Promise<AuthResponse> => {
-  logger.info(`Admin login attempt via ${provider}`);
+  logger.info(`Admin social login attempt via ${provider}`);
 
-  const result = await loginOrSignUpAdminWithProvider(
+  const result = await loginAdminWithProvider(
     provider,
     token,
     identityToken,
+    inviteToken,
   );
 
-  logger.info(`Admin login successful for user: ${result.user._id}`);
+  logger.info(`Admin social login successful for user: ${result.user._id}`);
   return result;
 };
 
@@ -147,7 +227,9 @@ export const cafeOwnerLogin = async ({
   provider,
   token,
   identityToken,
-}: AdminLoginPayload): Promise<AuthResponse> => {
+}: AdminLoginPayload): Promise<
+  AuthResponse & { meta: Awaited<ReturnType<typeof resolveCafeOwnerLoginMeta>> }
+> => {
   logger.info(`Cafe owner login attempt via ${provider}`);
 
   const result = await loginOrSignUpCafeOwnerWithProvider(
@@ -156,8 +238,17 @@ export const cafeOwnerLogin = async ({
     identityToken,
   );
 
-  logger.info(`Cafe owner login successful for user: ${result.user._id}`);
-  return result;
+  const meta = await resolveCafeOwnerLoginMeta(
+    result.user._id.toString(),
+    result.user.role,
+  );
+
+  logger.info(`Cafe owner login successful for user: ${result.user._id}`, {
+    redirectTo: meta.redirectTo,
+    cafeStatus: meta.cafeStatus,
+  });
+
+  return { ...result, meta };
 };
 
 export const logout = async (refreshToken?: string): Promise<void> => {

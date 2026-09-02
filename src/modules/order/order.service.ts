@@ -12,7 +12,9 @@ import {
   emitStatusUpdate,
   emitOrderCancelled,
   emitAdminOrderEvent,
+  emitOrderCancelledToCafe,
 } from "../../socket/order";
+import { notifyAdminPaymentUpdate, toAdminPaymentPayload } from "../../socket/admin";
 import { IOrder, IOrderItem } from "../../models/order";
 import logger from "../../config/logger.config";
 import {
@@ -111,6 +113,14 @@ export const createOrderService = async (
 
   if (cafe.status != "approved") {
     throw new BadRequestError("This cafe is not approved.");
+  }
+
+  if (cafe.isBlocked) {
+    throw new BadRequestError("This cafe is currently unavailable.");
+  }
+
+  if (!cafe.isVisible) {
+    throw new BadRequestError("This cafe is currently hidden.");
   }
 
   if (!cafe.isOpen) {
@@ -269,6 +279,21 @@ export const createOrderService = async (
       await updateOrderStatusRepo(order._id.toString(), order.status, {
         paymentId: cfOrder.cf_order_id,
       } as any);
+
+      notifyAdminPaymentUpdate(
+        toAdminPaymentPayload({
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          paymentId: cfOrder.cf_order_id,
+          studentId: order.studentId,
+          cafeId: order.cafeId,
+          paymentMethod: order.paymentMethod,
+          totalAmount: order.totalAmount,
+          paymentStatus: "pending",
+          createdAt: order.createdAt,
+        }),
+        "payment_pending",
+      );
     } catch (error) {
       logger.error("Cashfree order creation failed", {
         orderId: order._id,
@@ -409,6 +434,14 @@ export const cancelOrderService = async (
     studentId,
   });
 
+  emitOrderCancelledToCafe(order.cafeId.toString(), {
+    orderId,
+    orderNumber: order.orderNumber,
+    status: "cancelled",
+    reason: cancellationReason,
+    cancelledBy: "student",
+  });
+
   return cancelledOrder;
 };
 
@@ -539,6 +572,11 @@ export const markOrderPaidByOrderNumberService = async (
     orderType: updatedOrder.orderType,
     totalAmount: updatedOrder.totalAmount,
   });
+
+  notifyAdminPaymentUpdate(
+    toAdminPaymentPayload(updatedOrder),
+    "payment_paid",
+  );
 
   return updatedOrder;
 };

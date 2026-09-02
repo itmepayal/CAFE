@@ -2,6 +2,7 @@ import Cafe, { ICafe } from "../../models/cafe";
 import Complaint, { IComplaint } from "../../models/complaint";
 import MenuItem, { IMenuItem } from "../../models/menu";
 import Order from "../../models/order";
+import mongoose from "mongoose";
 import {
   InternalServerError,
   NotFoundError,
@@ -20,6 +21,7 @@ export const findApprovedCafes = async (
   const filter: any = {
     status: "approved",
     isBlocked: false,
+    isVisible: true,
   };
 
   if (search) {
@@ -340,4 +342,68 @@ export const findExpiredPendingOrders = async (cutoffDate: Date) => {
     status: "pending",
     createdAt: { $lte: cutoffDate },
   });
+};
+
+const ACTIVE_ORDER_STATUSES = [
+  "pending",
+  "accepted",
+  "preparing",
+  "ready",
+  "out_for_delivery",
+] as const;
+
+export const getOwnerDashboardStatsRepo = async (cafe: ICafe) => {
+  const cafeId = cafe._id;
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+
+  const [
+    activeOrders,
+    pendingOrders,
+    todayOrders,
+    todayRevenueAgg,
+    totalRevenueAgg,
+    completedToday,
+  ] = await Promise.all([
+    Order.countDocuments({
+      cafeId,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    }),
+    Order.countDocuments({ cafeId, status: "pending" }),
+    Order.countDocuments({ cafeId, createdAt: { $gte: todayStart } }),
+    Order.aggregate([
+      {
+        $match: {
+          cafeId: new mongoose.Types.ObjectId(cafeId.toString()),
+          paymentStatus: "paid",
+          createdAt: { $gte: todayStart },
+        },
+      },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]),
+    Order.aggregate([
+      {
+        $match: {
+          cafeId: new mongoose.Types.ObjectId(cafeId.toString()),
+          paymentStatus: "paid",
+        },
+      },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]),
+    Order.countDocuments({
+      cafeId,
+      status: "completed",
+      updatedAt: { $gte: todayStart },
+    }),
+  ]);
+
+  return {
+    activeOrders,
+    pendingOrders,
+    todayOrders,
+    todayRevenue: todayRevenueAgg[0]?.total || 0,
+    totalRevenue: totalRevenueAgg[0]?.total || 0,
+    completedToday,
+    isOpen: cafe.isOpen,
+    cafeName: cafe.cafeName,
+  };
 };

@@ -14,6 +14,14 @@ import {
   forceCancelOrderService,
   refundOrderService,
   getOrderStatsService,
+  getDashboardStatsService,
+  getPaymentsService,
+  getAllCafesService,
+  getCafeByIdForAdminService,
+  toggleCafeOpenService,
+  toggleCafeVisibilityService,
+  getSettlementsService,
+  markSettlementAsSettledService,
 } from "./admin.service";
 import mongoose from "mongoose";
 import { cancelSpecificStaleOrderService } from "../owner/owner.service";
@@ -62,7 +70,7 @@ export const approveCafeController = async (
     res.status(200).json({
       success: true,
       message: "Cafe approved successfully",
-      cafe,
+      data: cafe,
     });
   } catch (error) {
     next(error);
@@ -85,7 +93,7 @@ export const rejectCafeController = async (
     res.status(200).json({
       success: true,
       message: "Cafe rejected successfully",
-      cafe,
+      data: cafe,
     });
   } catch (error) {
     next(error);
@@ -110,7 +118,7 @@ export const toggleCafeBlockController = async (
       message: cafe.isBlocked
         ? "Cafe blocked successfully"
         : "Cafe unblocked successfully",
-      cafe,
+      data: cafe,
     });
   } catch (error) {
     next(error);
@@ -422,6 +430,230 @@ export const listAdminInvitesController = async (
     res.status(200).json({
       success: true,
       data: invites,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * ADMIN DASHBOARD
+ * =========================================
+ */
+export const getDashboardStatsController = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const stats = await getDashboardStatsService();
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * ADMIN PAYMENTS
+ * =========================================
+ */
+export const getPaymentsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const paymentStatus = req.query.paymentStatus as string | undefined;
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+
+    const result = await getPaymentsService(paymentStatus, page, limit);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: result.summary,
+        transactions: result.transactions,
+      },
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: Math.ceil(result.total / result.limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * ADMIN SETTLEMENTS
+ * =========================================
+ */
+export const getSettlementsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const cafeId = req.query.cafeId as string | undefined;
+    const status = req.query.status as "pending" | "settled" | undefined;
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+
+    const result = await getSettlementsService(cafeId, status, page, limit);
+
+    res.status(200).json({
+      success: true,
+      data: result.settlements,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.pages,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const markSettlementAsSettledController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const adminId = req.user!.id;
+    const { settlementId } = req.params;
+
+    const settlement = await markSettlementAsSettledService(
+      settlementId,
+      adminId,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Settlement marked as settled",
+      data: settlement,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * ADMIN — ALL CAFES
+ * =========================================
+ */
+export const getAllCafesController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const status = req.query.status as string | undefined;
+    const search = req.query.search as string | undefined;
+    const isBlocked =
+      req.query.isBlocked !== undefined
+        ? req.query.isBlocked === "true"
+        : undefined;
+    const isVisible =
+      req.query.isVisible !== undefined
+        ? req.query.isVisible === "true"
+        : undefined;
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+
+    const result = await getAllCafesService(
+      { status, search, isBlocked, isVisible },
+      page,
+      limit,
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result.cafes,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: Math.ceil(result.total / result.limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * ADMIN — CAFE BY ID
+ * =========================================
+ */
+export const getCafeByIdForAdminController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const cafe = await getCafeByIdForAdminService(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      data: cafe,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================
+ * ADMIN — TOGGLE CAFE OPEN/CLOSE
+ * =========================================
+ */
+export const toggleCafeOpenController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const cafe = await toggleCafeOpenService(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: cafe.isOpen ? "Cafe opened successfully" : "Cafe closed successfully",
+      data: cafe,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleCafeVisibilityController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const cafe = await toggleCafeVisibilityService(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: cafe.isVisible
+        ? "Cafe is now visible to students"
+        : "Cafe is now hidden from students",
+      data: cafe,
     });
   } catch (error) {
     next(error);

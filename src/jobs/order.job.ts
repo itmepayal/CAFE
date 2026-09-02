@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import logger from "../config/logger.config";
 import { autoCancelStaleOrdersService } from "../modules/owner/owner.service";
+import { autoSettlePendingSettlementsService } from "../modules/settlement/settlement.service";
 import Order from "../models/order";
 
 export const startOrderAutoCancelJob = (): void => {
@@ -14,6 +15,18 @@ export const startOrderAutoCancelJob = (): void => {
   });
 
   logger.info("Order auto-cancel cron job scheduled (every 2 minutes)");
+};
+
+export const startSettlementAutoSettleJob = (): void => {
+  cron.schedule("0 2 * * *", async () => {
+    try {
+      await autoSettlePendingSettlementsService(7);
+    } catch (error) {
+      logger.error("Settlement auto-settle job failed", { error });
+    }
+  });
+
+  logger.info("Settlement auto-settle cron job scheduled (daily at 2 AM)");
 };
 
 export const cleanupStaleOrdersJob = async () => {

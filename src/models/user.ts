@@ -11,8 +11,9 @@ export interface IUser extends Document {
   profileImage: string;
   phone: string | null;
 
-  provider: "google" | "apple";
+  provider: "google" | "apple" | "email";
   providerId: string;
+  passwordHash?: string;
 
   role: "student" | "cafe_owner" | "super_admin";
 
@@ -70,15 +71,20 @@ const userSchema = new Schema<IUser>(
 
     provider: {
       type: String,
-      enum: ["google", "apple"],
+      enum: ["google", "apple", "email"],
       required: true,
     },
 
     providerId: {
       type: String,
       required: true,
-      unique: true,
       index: true,
+    },
+
+    passwordHash: {
+      type: String,
+      select: false,
+      default: null,
     },
 
     role: {
@@ -159,6 +165,7 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.index({ createdAt: -1 });
+userSchema.index({ providerId: 1 }, { unique: true });
 
 userSchema.virtual("isCafeOwner").get(function (this: IUser) {
   return this.role === "cafe_owner";

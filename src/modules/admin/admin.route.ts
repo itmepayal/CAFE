@@ -4,18 +4,26 @@ import {
   approveCafeController,
   rejectCafeController,
   toggleCafeBlockController,
+  toggleCafeOpenController,
+  toggleCafeVisibilityController,
   updateComplaintStatusController,
   getComplaintByIdController,
   getAllComplaintsController,
   getPendingCafesController,
+  getAllCafesController,
+  getCafeByIdForAdminController,
   triggerSpecificOrderCancelController,
   getAllOrdersController,
   getOrderByIdController,
   forceCancelOrderController,
   refundOrderController,
   getOrderStatsController,
+  getDashboardStatsController,
+  getPaymentsController,
   createAdminInviteController,
   listAdminInvitesController,
+  getSettlementsController,
+  markSettlementAsSettledController,
 } from "./admin.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
@@ -24,10 +32,165 @@ import { validate } from "../../middlewares/validate.middleware";
 import {
   getAllComplaintsSchema,
   updateComplaintActionSchema,
+  getPaymentsSchema,
+  getAllCafesSchema,
+  getSettlementsSchema,
+  settlementParamsSchema,
 } from "./admin.validation";
 import { createAdminInviteSchema } from "../auth/auth.validation";
 
 const adminRouter = Router();
+
+adminRouter.use(authenticate, authorize("super_admin"));
+
+/**
+ * @swagger
+ * /admin/dashboard:
+ *   get:
+ *     summary: Admin dashboard statistics (Figma Dashboard screen)
+ *     description: >
+ *       Returns all stats shown on the admin home screen:
+ *       Total Earnings, Active Orders, Total Orders, All Users, New Cafe Requests.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard stats fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/AdminDashboardStats'
+ */
+adminRouter.get("/dashboard", getDashboardStatsController);
+
+/**
+ * @swagger
+ * /admin/payments:
+ *   get:
+ *     summary: Payment summary and transactions (Figma Payments screen)
+ *     description: >
+ *       Returns Total Collection, Success/Pending counts, and paginated transaction list
+ *       with paymentId, user email, method, amount, and status.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: paymentStatus
+ *         schema:
+ *           type: string
+ *           enum: [pending, paid, failed, refunded]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Payments fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       $ref: '#/components/schemas/AdminPaymentSummary'
+ *                     transactions:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/AdminPaymentTransaction'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/Pagination'
+ */
+adminRouter.get(
+  "/payments",
+  validate(getPaymentsSchema),
+  getPaymentsController,
+);
+
+/**
+ * @swagger
+ * /admin/settlements:
+ *   get:
+ *     summary: List cafe payout settlements
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: cafeId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, settled]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Settlements fetched successfully
+ */
+adminRouter.get(
+  "/settlements",
+  validate(getSettlementsSchema),
+  getSettlementsController,
+);
+
+/**
+ * @swagger
+ * /admin/settlements/{settlementId}/settle:
+ *   patch:
+ *     summary: Mark a settlement as settled (payout completed)
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: settlementId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Settlement marked as settled
+ */
+adminRouter.patch(
+  "/settlements/:settlementId/settle",
+  validate(settlementParamsSchema),
+  markSettlementAsSettledController,
+);
 
 /**
  * @swagger
@@ -400,6 +563,137 @@ adminRouter.get(
   authenticate,
   authorize("super_admin"),
   getPendingCafesController,
+);
+
+/**
+ * @swagger
+ * /admin/cafes:
+ *   get:
+ *     summary: Get all cafes for admin management
+ *     description: Returns all cafes with status, open/close, and block info for the Manage Cafe screen.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, rejected]
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isBlocked
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: isVisible
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Cafes fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/AdminCafeListItem'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/Pagination'
+ */
+adminRouter.get(
+  "/cafes",
+  validate(getAllCafesSchema),
+  getAllCafesController,
+);
+
+/**
+ * @swagger
+ * /admin/cafes/{id}:
+ *   get:
+ *     summary: Get cafe details for admin
+ *     description: Returns full cafe details including owner info for request review.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Cafe details fetched successfully
+ *       404:
+ *         description: Cafe not found
+ */
+adminRouter.get("/cafes/:id", getCafeByIdForAdminController);
+
+/**
+ * @swagger
+ * /admin/cafes/{id}/toggle-open:
+ *   patch:
+ *     summary: Open or close a cafe
+ *     description: Super Admin can force open/close any approved cafe.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Cafe open status updated successfully
+ */
+adminRouter.patch("/cafes/:id/toggle-open", toggleCafeOpenController);
+
+/**
+ * @swagger
+ * /admin/cafes/{id}/toggle-visibility:
+ *   patch:
+ *     summary: Show or hide a cafe from the student app
+ *     description: >
+ *       Toggles the isVisible flag independently from block status.
+ *       Hidden cafes do not appear in student cafe listings.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Cafe visibility updated successfully
+ */
+adminRouter.patch(
+  "/cafes/:id/toggle-visibility",
+  toggleCafeVisibilityController,
 );
 
 /**

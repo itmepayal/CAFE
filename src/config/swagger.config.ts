@@ -1,14 +1,17 @@
 import swaggerJsdoc from "swagger-jsdoc";
 import { serverConfig } from "../config";
+import { adminSwaggerSchemas } from "./admin.swagger.schemas";
+import { ownerSwaggerSchemas } from "./owner.swagger.schemas";
 
 const options: swaggerJsdoc.Options = {
   definition: {
     openapi: "3.0.0",
 
     info: {
-      title: "Gravil Backend API",
+      title: "Gravly Backend API",
       version: "1.0.0",
-      description: "Gravil Backend API Documentation",
+      description:
+        "Gravly (Cafe Mart) Backend API — Student, Cafe Owner, and Super Admin flows.",
     },
 
     servers: [
@@ -28,56 +31,68 @@ const options: swaggerJsdoc.Options = {
           in: "cookie",
           name: "accessToken",
         },
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description: "Use accessToken from login response",
+        },
       },
 
       schemas: {
+        ...adminSwaggerSchemas,
+        ...ownerSwaggerSchemas,
+
         Cafe: {
           type: "object",
           properties: {
-            _id: {
-              type: "string",
+            _id: { type: "string" },
+            cafeName: { type: "string", example: "Moonlight Cafe" },
+            ownerName: { type: "string", example: "Vishu Kumar" },
+            description: { type: "string" },
+            mobile: { type: "string", example: "9876543210" },
+            email: { type: "string", format: "email" },
+            address: {
+              type: "object",
+              properties: {
+                street: { type: "string" },
+                area: { type: "string", example: "VIT-1" },
+                city: { type: "string" },
+                state: { type: "string" },
+                pincode: { type: "string" },
+                landmark: { type: "string" },
+              },
             },
-            cafeName: {
-              type: "string",
-            },
-            ownerName: {
-              type: "string",
-            },
-            description: {
-              type: "string",
-            },
-            mobile: {
-              type: "string",
-            },
-            email: {
-              type: "string",
-              format: "email",
-            },
+            cafeImage: { type: "string" },
+            menuImage: { type: "string" },
             status: {
               type: "string",
               enum: ["pending", "approved", "rejected"],
             },
             isOpen: {
               type: "boolean",
+              description: "Figma STATUS toggle (OPEN/CLOSED)",
+            },
+            isVisible: {
+              type: "boolean",
+              description: "Figma VISIBLE toggle (show/hide in student app)",
             },
             isBlocked: {
               type: "boolean",
+              description: "Admin block — forces hidden + restricted",
+            },
+            statusLabel: {
+              type: "string",
+              enum: ["OPEN", "CLOSED"],
             },
             rating: {
               type: "object",
               properties: {
-                average: {
-                  type: "number",
-                },
-                totalReviews: {
-                  type: "number",
-                },
+                average: { type: "number" },
+                totalReviews: { type: "integer" },
               },
             },
-            createdAt: {
-              type: "string",
-              format: "date-time",
-            },
+            createdAt: { type: "string", format: "date-time" },
           },
         },
 
@@ -207,14 +222,15 @@ const options: swaggerJsdoc.Options = {
       },
     },
 
-    security: [
-      {
-        cookieAuth: { type: "apiKey", in: "cookie", name: "accessToken" },
-      },
-    ],
+    security: [{ bearerAuth: [] }, { cookieAuth: [] }],
   },
 
-  apis: ["./src/modules/**/*.route.ts", "./src/modules/**/*.routes.ts"],
+  apis: [
+    "./src/modules/**/*.route.ts",
+    "./src/modules/**/*.routes.ts",
+    "./src/socket/socket.docs.ts",
+    "./src/config/owner.swagger.docs.ts",
+  ],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

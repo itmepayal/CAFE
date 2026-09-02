@@ -8,6 +8,7 @@ import {
   changeProfileController,
   refreshTokenController,
   adminLoginController,
+  adminRegisterController,
   cafeOwnerLoginController,
 } from "./auth.controller";
 
@@ -18,7 +19,9 @@ import { authRateLimiter } from "../../middlewares/rate-limit.middleware";
 import {
   googleLoginSchema,
   appleLoginSchema,
-  adminLoginSchema,
+  adminEmailLoginSchema,
+  adminEmailRegisterSchema,
+  cafeOwnerLoginSchema,
 } from "./auth.validation";
 
 export const authRouter = Router();
@@ -188,12 +191,12 @@ authRouter.post("/refresh-token", refreshTokenController);
 
 /**
  * @swagger
- * /auth/admin/login:
+ * /auth/admin/register:
  *   post:
- *     summary: Login or sign up as super admin using Google or Apple
+ *     summary: Register super admin with email and password (Figma Admin screen)
  *     description: >
- *       Verifies Google or Apple token and auto-registers a new super_admin if the account
- *       does not exist. Existing super_admin accounts are logged in directly.
+ *       Creates a super_admin account using email and password.
+ *       Requires inviteToken from POST /admin/invites or ADMIN_BOOTSTRAP_TOKEN for first admin.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -201,32 +204,77 @@ authRouter.post("/refresh-token", refreshTokenController);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - provider
+ *             required: [name, email, password, inviteToken]
  *             properties:
- *               provider:
+ *               name:
  *                 type: string
- *                 enum:
- *                   - google
- *                   - apple
- *                 example: google
- *               token:
+ *                 example: Admin User
+ *               email:
  *                 type: string
- *                 description: Required when provider is "google"
- *                 example: eyJhbGciOiJSUzI1NiIs...
- *               identityToken:
+ *                 format: email
+ *                 example: admin@gravly.com
+ *               password:
  *                 type: string
- *                 description: Required when provider is "apple"
- *                 example: eyJraWQiOiJ...
+ *                 format: password
+ *                 minLength: 8
+ *                 example: SecurePass123
+ *               inviteToken:
+ *                 type: string
+ *                 description: From POST /admin/invites or ADMIN_BOOTSTRAP_TOKEN
+ *     responses:
+ *       201:
+ *         description: Admin registered and logged in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthTokenResponse'
+ *       409:
+ *         description: Email already exists
+ */
+authRouter.post(
+  "/admin/register",
+  validate(adminEmailRegisterSchema),
+  adminRegisterController,
+);
+
+/**
+ * @swagger
+ * /auth/admin/login:
+ *   post:
+ *     summary: Super Admin login with email and password (Figma Admin screen)
+ *     description: >
+ *       Authenticates an existing super_admin using email and password.
+ *       Returns JWT accessToken for Bearer auth on all /admin/* routes.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: admin@gravly.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: SecurePass123
  *     responses:
  *       200:
- *         description: Admin login successful and cookies set
+ *         description: Admin login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthTokenResponse'
  *       401:
- *         description: Invalid token or user is not a super_admin
+ *         description: Invalid credentials or not a super_admin
  */
 authRouter.post(
   "/admin/login",
-  validate(adminLoginSchema),
+  validate(adminEmailLoginSchema),
   adminLoginController,
 );
 
@@ -263,12 +311,39 @@ authRouter.post(
  *                 description: Required when provider is "apple"
  *     responses:
  *       200:
- *         description: Cafe owner login successful and cookies set
+ *         description: Cafe owner login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                     accessToken:
+ *                       type: string
+ *                     portal:
+ *                       type: string
+ *                       example: cafe_owner
+ *                     redirectTo:
+ *                       type: string
+ *                       enum: [register_cafe, pending_approval, rejected, dashboard]
+ *                     cafeStatus:
+ *                       type: string
+ *                       enum: [not_registered, pending, rejected, approved]
+ *                     cafeId:
+ *                       type: string
  *       401:
  *         description: Invalid token or user used the wrong portal
  */
 authRouter.post(
   "/cafe-owner/login",
-  validate(adminLoginSchema),
+  validate(cafeOwnerLoginSchema),
   cafeOwnerLoginController,
 );

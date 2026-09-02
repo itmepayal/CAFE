@@ -68,11 +68,32 @@ ADMIN_BOOTSTRAP_TOKEN=   # first super_admin only
 | Role | Endpoint | Sign-up on screen? |
 |------|----------|-------------------|
 | Student | `POST /auth/google`, `POST /auth/apple` | Yes — auto on first login |
-| Super Admin | `POST /auth/admin/login` | Yes — auto on first login |
+| Super Admin | `POST /auth/admin/login` | `POST /auth/admin/register` + `inviteToken` |
 | Cafe Owner | `POST /auth/cafe-owner/login` | Yes — auto on first login, then `POST /cafes/register` |
 
 **Mobile auth:** Send `Authorization: Bearer <accessToken>` header.  
 **Web auth:** httpOnly cookies set automatically.
+
+---
+
+## Admin Endpoints (Figma screens)
+
+| Screen | Endpoint |
+|--------|----------|
+| Login | `POST /auth/admin/login` `{ email, password }` |
+| Register | `POST /auth/admin/register` `{ name, email, password, inviteToken }` |
+| Dashboard | `GET /admin/dashboard` |
+| Payments | `GET /admin/payments` |
+| New Cafe Requests | `GET /admin/cafes/pending` |
+| Cafe Request Details | `GET /admin/cafes/:id` |
+| Approve / Decline | `PATCH /admin/cafes/:id/approve` / `reject` |
+| All Orders | `GET /admin/orders` |
+| All Users | `GET /admin/users` |
+| Manage Cafe list | `GET /admin/cafes` |
+| Open / Close cafe | `PATCH /admin/cafes/:id/toggle-open` |
+| Show / Hide cafe (VISIBLE) | `PATCH /admin/cafes/:id/toggle-visibility` |
+| Block / Unblock cafe | `PATCH /admin/cafes/:id/block` |
+| Profile | `GET /auth/me` |
 
 ---
 

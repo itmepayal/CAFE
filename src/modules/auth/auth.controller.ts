@@ -10,6 +10,7 @@ import {
   changeProfile,
   refreshTokens,
   adminLogin,
+  adminRegister,
   cafeOwnerLogin,
   logout,
 } from "./auth.service";
@@ -92,15 +93,40 @@ export const refreshTokenController = asyncHandler(
 export const adminLoginController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const result = await adminLogin({
-      provider: req.body.provider,
-      token: req.body.token,
-      identityToken: req.body.identityToken,
+      email: req.body.email,
+      password: req.body.password,
     });
 
     sendAuthResponse({
       res,
       message: "Admin login successful",
       tokens: result,
+      meta: {
+        portal: "admin",
+        redirectTo: "dashboard",
+      },
+    });
+  },
+);
+
+export const adminRegisterController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const result = await adminRegister({
+      name: req.body.name,
+      email: req.body.email,
+      password: req.body.password,
+      inviteToken: req.body.inviteToken,
+    });
+
+    sendAuthResponse({
+      res,
+      message: "Admin registration successful",
+      tokens: result,
+      statusCode: 201,
+      meta: {
+        portal: "admin",
+        redirectTo: "dashboard",
+      },
     });
   },
 );
@@ -117,6 +143,9 @@ export const cafeOwnerLoginController = asyncHandler(
       res,
       message: "Cafe owner login successful",
       tokens: result,
+      meta: {
+        ...result.meta,
+      },
     });
   },
 );

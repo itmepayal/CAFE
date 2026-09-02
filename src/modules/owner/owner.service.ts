@@ -12,15 +12,21 @@ import {
   findMenuItemsByCafeId,
   findOrdersByCafeId,
   findOrderByCafeIdAndOrderId,
-  updateOrderStatusRepo,
   findExpiredPendingOrders,
+  getOwnerDashboardStatsRepo,
 } from "./owner.repository";
+import { updateOrderStatusRepo } from "../order/order.repository";
 import {
   emitStatusUpdate,
   emitOrderReady,
   emitOrderCancelled,
   emitAdminOrderEvent,
 } from "../../socket/order";
+import { emitAdminCafeUpdated } from "../../socket/admin";
+import {
+  emitOwnerOrderUpdated,
+  ownerRealtimeNotifier,
+} from "../../socket/owner";
 import {
   BadRequestError,
   ForbiddenError,
@@ -39,6 +45,11 @@ import { processOrderRefund } from "../payment/refund.service";
 import { logger } from "../../config/logger.config";
 import { cancelOrderRepo } from "../order/order.repository";
 import { findOrderByIdRepo } from "../order/order.repository";
+import {
+  getOwnerTransactionsService as fetchOwnerTransactions,
+  recordSettlementForCompletedOrder,
+} from "../settlement/settlement.service";
+import { SettlementStatus } from "../../models/settlement";
 import {
   OrderStatus,
   STATUS_MESSAGES,
@@ -284,7 +295,48 @@ export const toggleCafeOpenService = async (userId: string) => {
     isOpen: (cafe as any).isOpen,
   });
 
+  emitAdminCafeUpdated(cafe, "open_toggled");
+  ownerRealtimeNotifier.scheduleDashboardRefresh(cafe._id.toString());
+
   return cafe;
+};
+
+const getOrderCafeId = (order: IOrder): string =>
+  order.cafeId._id
+    ? order.cafeId._id.toString()
+    : order.cafeId.toString();
+
+const notifyOwnerOrderSocket = (order: IOrder): void => {
+  emitOwnerOrderUpdated(getOrderCafeId(order), {
+    orderId: order._id,
+    orderNumber: order.orderNumber,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    totalAmount: order.totalAmount,
+    orderType: order.orderType,
+  });
+};
+
+// =========================================
+// OWNER DASHBOARD
+// =========================================
+export const getOwnerDashboardService = async (userId: string) => {
+  const cafe = await getApprovedCafeOrThrow(userId);
+  return getOwnerDashboardStatsRepo(cafe);
+};
+
+export const getOwnerTransactionsService = async (
+  userId: string,
+  filters: {
+    from?: string;
+    to?: string;
+    settlementStatus?: SettlementStatus;
+    page?: number;
+    limit?: number;
+  },
+) => {
+  const cafe = await getApprovedCafeOrThrow(userId);
+  return fetchOwnerTransactions(cafe._id.toString(), filters);
 };
 
 /**
@@ -805,6 +857,8 @@ export const acceptOrderService = async (
     cafeId: order.cafeId.toString(),
   });
 
+  notifyOwnerOrderSocket(updatedOrder);
+
   return updatedOrder;
 };
 
@@ -865,6 +919,8 @@ export const rejectOrderService = async (
     reason: rejectionReason,
   });
 
+  notifyOwnerOrderSocket(updatedOrder);
+
   return updatedOrder;
 };
 
@@ -893,6 +949,8 @@ export const markOrderPreparingService = async (
     orderId,
     cafeId: order.cafeId.toString(),
   });
+
+  notifyOwnerOrderSocket(updatedOrder);
 
   return updatedOrder;
 };
@@ -927,6 +985,8 @@ export const markOrderReadyService = async (
     orderId,
     cafeId: order.cafeId.toString(),
   });
+
+  notifyOwnerOrderSocket(updatedOrder);
 
   return updatedOrder;
 };
@@ -965,6 +1025,10 @@ export const completePickupOrderService = async (
     orderId,
     cafeId: order.cafeId.toString(),
   });
+
+  notifyOwnerOrderSocket(updatedOrder);
+
+  await recordSettlementForCompletedOrder(updatedOrder);
 
   return updatedOrder;
 };

@@ -115,3 +115,38 @@ export const updateComplaintActionSchema = z.object({
     assignedTo: z.string().optional(),
   }),
 });
+
+const paginationQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(10),
+});
+
+export const getPaymentsSchema = z.object({
+  query: paginationQuerySchema.extend({
+    paymentStatus: z.enum(["pending", "paid", "failed", "refunded"]).optional(),
+  }),
+});
+
+export const getAllCafesSchema = z.object({
+  query: paginationQuerySchema.extend({
+    status: z.enum(["pending", "approved", "rejected"]).optional(),
+    search: z.string().optional(),
+    isBlocked: z.enum(["true", "false"]).optional(),
+    isVisible: z.enum(["true", "false"]).optional(),
+  }),
+});
+
+export const getSettlementsSchema = z.object({
+  query: paginationQuerySchema.extend({
+    cafeId: z.string().optional(),
+    status: z.enum(["pending", "settled"]).optional(),
+  }),
+});
+
+export const settlementParamsSchema = z.object({
+  params: z.object({
+    settlementId: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, "Invalid settlement ID"),
+  }),
+});

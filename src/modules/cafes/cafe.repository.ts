@@ -19,6 +19,7 @@ export const findApprovedCafes = async (
   const filter: any = {
     status: "approved",
     isBlocked: false,
+    isVisible: true,
   };
 
   if (search) {

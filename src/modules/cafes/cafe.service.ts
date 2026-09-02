@@ -6,6 +6,7 @@ import {
 } from "./cafe.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
+import { emitAdminCafeRequest } from "../../socket/admin";
 
 // =========================================
 // REGISTER CAFE
@@ -25,12 +26,15 @@ export const registerCafeService = async (userId: string, payload: any) => {
     userId,
     status: "pending",
     isBlocked: false,
+    isVisible: false,
     isOpen: false,
     isFeatured: false,
     supportsDelivery: payload.supportsDelivery ?? false,
   });
 
   logger.info(`Cafe registered with id: ${cafe?._id} (pending admin approval)`);
+
+  emitAdminCafeRequest(cafe);
 
   return cafe;
 };
@@ -63,6 +67,13 @@ export const getCafeByIdService = async (id: string) => {
 
   if (!cafe) {
     logger.warn(`Cafe not found: ${id}`);
+    throw new NotFoundError("Cafe not found");
+  }
+
+  if (
+    cafe.status === "approved" &&
+    (!cafe.isVisible || cafe.isBlocked)
+  ) {
     throw new NotFoundError("Cafe not found");
   }
 

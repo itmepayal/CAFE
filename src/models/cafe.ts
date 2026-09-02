@@ -27,6 +27,7 @@ export interface ICafe extends Document {
   cafeImage: string;
   menuImage: string;
   gallery: string[];
+  layoutPhotos: string[];
 
   documents: {
     aadharNumber: string;
@@ -40,13 +41,24 @@ export interface ICafe extends Document {
   bankDetails: {
     accountHolderName: string;
     accountNumber: string;
+    bankName: string;
     ifscCode: string;
     upiId: string;
+    gstId: string;
     bankPassbookPhoto: string;
   };
 
+  socialMedia: {
+    instagram: string;
+    facebook: string;
+    website: string;
+  };
+
+  registrationFeedback: string;
+
   isOpen: boolean;
   isBlocked: boolean;
+  isVisible: boolean;
   isFeatured: boolean;
   supportsDelivery: boolean;
 
@@ -146,6 +158,12 @@ const cafeSchema = new Schema<ICafe>(
       },
     ],
 
+    layoutPhotos: [
+      {
+        type: String,
+      },
+    ],
+
     documents: {
       aadharNumber: {
         type: String,
@@ -193,6 +211,12 @@ const cafeSchema = new Schema<ICafe>(
         required: true,
       },
 
+      bankName: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+
       ifscCode: {
         type: String,
         required: true,
@@ -205,10 +229,28 @@ const cafeSchema = new Schema<ICafe>(
         lowercase: true,
       },
 
+      gstId: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+
       bankPassbookPhoto: {
         type: String,
         default: "",
       },
+    },
+
+    socialMedia: {
+      instagram: { type: String, default: "" },
+      facebook: { type: String, default: "" },
+      website: { type: String, default: "" },
+    },
+
+    registrationFeedback: {
+      type: String,
+      default: "",
+      maxlength: 1000,
     },
 
     isOpen: {
@@ -219,6 +261,12 @@ const cafeSchema = new Schema<ICafe>(
     isBlocked: {
       type: Boolean,
       default: false,
+    },
+
+    isVisible: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
 
     isFeatured: {

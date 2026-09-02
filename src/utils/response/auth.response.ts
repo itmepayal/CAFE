@@ -7,6 +7,7 @@ interface SendAuthResponseOptions {
   message: string;
   tokens: AuthTokensResult;
   statusCode?: number;
+  meta?: Record<string, unknown>;
 }
 
 /**
@@ -17,6 +18,7 @@ export const sendAuthResponse = ({
   message,
   tokens,
   statusCode = 200,
+  meta,
 }: SendAuthResponseOptions): void => {
   setAuthCookies(res, {
     accessToken: tokens.accessToken,
@@ -30,6 +32,8 @@ export const sendAuthResponse = ({
       user: tokens.user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
+      token: tokens.accessToken,
+      ...(meta ?? {}),
     },
   });
 };

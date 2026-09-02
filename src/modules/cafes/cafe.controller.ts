@@ -5,6 +5,12 @@ import {
   getCafeByIdService,
   getMyCafeService,
 } from "./cafe.service";
+import {
+  getRegistrationDraftService,
+  saveRegistrationDraftStepService,
+  submitRegistrationDraftService,
+  clearRegistrationDraftService,
+} from "./cafe-draft.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 
 // =========================================
@@ -32,6 +38,15 @@ export const registerCafeController = async (
         ? await Promise.all(
             files.gallery.map((file: any) =>
               uploadToCloudinary(file.path, "cafes/gallery"),
+            ),
+          )
+        : [];
+
+    const layoutPhotos =
+      files?.layoutPhotos?.length > 0
+        ? await Promise.all(
+            files.layoutPhotos.map((file: any) =>
+              uploadToCloudinary(file.path, "cafes/layout"),
             ),
           )
         : [];
@@ -68,14 +83,22 @@ export const registerCafeController = async (
     const bankDetails = {
       accountHolderName: req.body.accountHolderName,
       accountNumber: req.body.accountNumber,
+      bankName: req.body.bankName,
       ifscCode: req.body.ifscCode,
       upiId: req.body.upiId,
+      gstId: req.body.gstId ?? "",
       bankPassbookPhoto: files?.bankPassbookPhoto?.[0]
         ? await uploadToCloudinary(
             files.bankPassbookPhoto[0].path,
             "cafes/docs",
           )
         : "",
+    };
+
+    const socialMedia = {
+      instagram: req.body.instagram ?? "",
+      facebook: req.body.facebook ?? "",
+      website: req.body.website ?? "",
     };
 
     const supportsDelivery = req.body.supportsDelivery === "true";
@@ -93,9 +116,12 @@ export const registerCafeController = async (
       cafeImage,
       menuImage,
       gallery,
+      layoutPhotos,
 
       documents,
       bankDetails,
+      socialMedia,
+      registrationFeedback: req.body.registrationFeedback ?? "",
 
       supportsDelivery,
     };
@@ -105,6 +131,183 @@ export const registerCafeController = async (
       success: true,
       message: "Cafe registered successfully",
       data: cafe,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// GET REGISTRATION DRAFT
+// =========================================
+export const getRegistrationDraftController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user?.id as string;
+    const draft = await getRegistrationDraftService(userId);
+
+    res.json({
+      success: true,
+      data: draft,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// SAVE REGISTRATION DRAFT STEP
+// =========================================
+export const saveRegistrationDraftStepController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user?.id as string;
+    const step = Number(req.params.step);
+    const files = req.files as any;
+    let stepData: Record<string, unknown> = { ...req.body };
+
+    if (step === 4) {
+      if (files?.cafeImage?.[0]) {
+        stepData.cafeImage = await uploadToCloudinary(
+          files.cafeImage[0].path,
+          "cafes",
+        );
+      }
+
+      if (files?.menuImage?.[0]) {
+        stepData.menuImage = await uploadToCloudinary(
+          files.menuImage[0].path,
+          "cafes",
+        );
+      }
+
+      if (files?.gallery?.length) {
+        stepData.gallery = await Promise.all(
+          files.gallery.map((file: any) =>
+            uploadToCloudinary(file.path, "cafes/gallery"),
+          ),
+        );
+      }
+
+      if (files?.layoutPhotos?.length) {
+        stepData.layoutPhotos = await Promise.all(
+          files.layoutPhotos.map((file: any) =>
+            uploadToCloudinary(file.path, "cafes/layout"),
+          ),
+        );
+      }
+
+      if (files?.aadharPhoto?.[0]) {
+        stepData.aadharPhoto = await uploadToCloudinary(
+          files.aadharPhoto[0].path,
+          "cafes/docs",
+        );
+      }
+
+      if (files?.panPhoto?.[0]) {
+        stepData.panPhoto = await uploadToCloudinary(
+          files.panPhoto[0].path,
+          "cafes/docs",
+        );
+      }
+
+      if (files?.fssaiCertificate?.[0]) {
+        stepData.fssaiCertificate = await uploadToCloudinary(
+          files.fssaiCertificate[0].path,
+          "cafes/docs",
+        );
+      }
+
+      if (files?.bankPassbookPhoto?.[0]) {
+        stepData.bankPassbookPhoto = await uploadToCloudinary(
+          files.bankPassbookPhoto[0].path,
+          "cafes/docs",
+        );
+      }
+
+      const existingDraft = await getRegistrationDraftService(userId);
+      const existingStep4 = (existingDraft as any).step4 ?? {};
+
+      stepData = {
+        ...existingStep4,
+        ...stepData,
+        gallery: [
+          ...(existingStep4.gallery ?? []),
+          ...((stepData.gallery as string[]) ?? []),
+        ],
+        layoutPhotos: [
+          ...(existingStep4.layoutPhotos ?? []),
+          ...((stepData.layoutPhotos as string[]) ?? []),
+        ],
+      };
+    }
+
+    if (step === 5) {
+      stepData = {
+        registrationFeedback: req.body.registrationFeedback ?? "",
+        socialMedia: {
+          instagram: req.body.instagram ?? "",
+          facebook: req.body.facebook ?? "",
+          website: req.body.website ?? "",
+        },
+      };
+    }
+
+    const draft = await saveRegistrationDraftStepService(userId, step, stepData);
+
+    res.json({
+      success: true,
+      message: `Step ${step} saved successfully`,
+      data: draft,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// SUBMIT REGISTRATION DRAFT
+// =========================================
+export const submitRegistrationDraftController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user?.id as string;
+    const cafe = await submitRegistrationDraftService(userId);
+
+    res.status(201).json({
+      success: true,
+      message: "Cafe registration submitted successfully",
+      data: cafe,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// CLEAR REGISTRATION DRAFT
+// =========================================
+export const clearRegistrationDraftController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user?.id as string;
+    await clearRegistrationDraftService(userId);
+
+    res.json({
+      success: true,
+      message: "Registration draft cleared",
     });
   } catch (error) {
     next(error);

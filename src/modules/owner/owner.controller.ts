@@ -18,8 +18,67 @@ import {
   markOrderPreparingService,
   markOrderReadyService,
   completePickupOrderService,
+  getOwnerDashboardService,
+  getOwnerTransactionsService,
 } from "./owner.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
+
+// =========================================
+// OWNER DASHBOARD
+// =========================================
+export const getOwnerDashboardController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const stats = await getOwnerDashboardService(userId);
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =========================================
+// OWNER TRANSACTION HISTORY
+// =========================================
+export const getOwnerTransactionsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user!.id;
+    const { from, to, settlementStatus, page, limit } = req.query;
+
+    const result = await getOwnerTransactionsService(userId, {
+      from: from as string | undefined,
+      to: to as string | undefined,
+      settlementStatus: settlementStatus as "pending" | "settled" | undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.transactions,
+      summary: result.summary,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.pages,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // =========================================
 // GET APPROVED CAFES
@@ -104,6 +163,14 @@ export const updateMyCafeController = async (
       updateData.gallery = await Promise.all(
         files.gallery.map((f: any) =>
           uploadToCloudinary(f.path, "cafes/gallery"),
+        ),
+      );
+    }
+
+    if (files?.layoutPhotos?.length) {
+      updateData.layoutPhotos = await Promise.all(
+        files.layoutPhotos.map((f: any) =>
+          uploadToCloudinary(f.path, "cafes/layout"),
         ),
       );
     }

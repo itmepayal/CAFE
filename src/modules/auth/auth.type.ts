@@ -27,8 +27,22 @@ export interface RefreshTokenPayload {
   refreshToken: string;
 }
 
+export interface AdminEmailLoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface AdminEmailRegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  inviteToken?: string;
+}
+
+/** @deprecated Admin uses email/password — kept for cafe-owner social login */
 export interface AdminLoginPayload {
   provider: "google" | "apple";
   token?: string;
   identityToken?: string;
+  inviteToken?: string;
 }

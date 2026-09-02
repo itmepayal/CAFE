@@ -17,6 +17,8 @@ import {
   markOrderPreparingController,
   markOrderReadyController,
   completePickupOrderController,
+  getOwnerDashboardController,
+  getOwnerTransactionsController,
 } from "./owner.controller";
 
 import { upload } from "../../config/multer.config";
@@ -30,9 +32,83 @@ import {
   toggleAvailabilitySchema,
   updateCafeSchema,
   updateMenuItemSchema,
+  getOwnerTransactionsSchema,
 } from "./owner.validation";
 
 const ownerRouter = Router();
+
+/**
+ * @swagger
+ * /owners/dashboard:
+ *   get:
+ *     summary: Cafe owner dashboard statistics (Figma Home screen)
+ *     description: >
+ *       Returns active orders, pending orders, today's revenue, total revenue,
+ *       and cafe open status for the owner home screen.
+ *     tags: [Owner]
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard stats fetched successfully
+ */
+ownerRouter.get(
+  "/dashboard",
+  authenticate,
+  authorize("cafe_owner"),
+  getOwnerDashboardController,
+);
+
+/**
+ * @swagger
+ * /owners/transactions:
+ *   get:
+ *     summary: Cafe owner transaction history (Figma Transaction History screen)
+ *     description: >
+ *       Returns paginated paid/completed orders for the last 30 days by default,
+ *       with settlement status (pending/settled) for each transaction.
+ *     tags: [Owner]
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: settlementStatus
+ *         schema:
+ *           type: string
+ *           enum: [pending, settled]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Transactions fetched successfully
+ */
+ownerRouter.get(
+  "/transactions",
+  authenticate,
+  authorize("cafe_owner"),
+  validate(getOwnerTransactionsSchema),
+  getOwnerTransactionsController,
+);
 
 /**
  * @swagger
@@ -111,6 +187,8 @@ ownerRouter.get(
  *                 type: string
  *               accountNumber:
  *                 type: string
+ *               bankName:
+ *                 type: string
  *               ifscCode:
  *                 type: string
  *               upiId:
@@ -122,6 +200,11 @@ ownerRouter.get(
  *                 type: string
  *                 format: binary
  *               gallery:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               layoutPhotos:
  *                 type: array
  *                 items:
  *                   type: string
@@ -150,6 +233,7 @@ ownerRouter.put(
     { name: "cafeImage", maxCount: 1 },
     { name: "menuImage", maxCount: 1 },
     { name: "gallery", maxCount: 10 },
+    { name: "layoutPhotos", maxCount: 10 },
     { name: "aadharPhoto", maxCount: 1 },
     { name: "panPhoto", maxCount: 1 },
     { name: "fssaiCertificate", maxCount: 1 },
@@ -213,14 +297,10 @@ ownerRouter.get(
  *           schema:
  *             type: object
  *             required:
- *               - cafeId
  *               - category
  *               - name
  *               - price
  *             properties:
- *               cafeId:
- *                 type: string
- *                 example: 6a2ebca534f3496a157dc7a5
  *               category:
  *                 type: string
  *                 example: Nasta

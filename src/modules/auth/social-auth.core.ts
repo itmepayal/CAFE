@@ -13,6 +13,11 @@ import {
 } from "./auth.repository";
 import { issueAuthTokens, AuthTokensResult } from "./auth.tokens";
 import { ExpectedRole, Provider, ProviderProfile } from "./auth.type";
+import {
+  validateAndConsumeAdminInvite,
+  markInviteUsedBy,
+} from "../admin/admin-invite.service";
+import { emitAdminUserRegistered } from "../../socket/admin";
 
 export const verifyProviderToken = async (
   provider: Provider,
@@ -110,6 +115,14 @@ export const findOrCreateStudent = async (
     });
   }
 
+  emitAdminUserRegistered({
+    userId: user._id.toString(),
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    provider: user.provider,
+  });
+
   return user;
 };
 
@@ -189,7 +202,7 @@ export const findOrCreateAdmin = async (
   }
 
   logger.info(
-    `Creating new super_admin via ${profile.provider} login: ${profile.email}`,
+    `Creating new super_admin via ${profile.provider}: ${profile.email}`,
   );
 
   if (profile.provider === "google") {
@@ -210,13 +223,39 @@ export const findOrCreateAdmin = async (
   return user;
 };
 
-export const loginOrSignUpAdminWithProvider = async (
+export const loginAdminWithProvider = async (
   provider: Provider,
   token?: string,
   identityToken?: string,
+  inviteToken?: string,
 ): Promise<AuthTokensResult> => {
   const profile = await verifyProviderToken(provider, token, identityToken);
+  const existingUser = await findExistingUser(profile);
+
+  if (existingUser) {
+    if (
+      existingUser.provider !== profile.provider &&
+      existingUser.providerId !== profile.providerId
+    ) {
+      throw new ConflictError(
+        `This email is already registered with ${existingUser.provider}. Please sign in using ${existingUser.provider}.`,
+      );
+    }
+
+    return authenticateUser(existingUser, { expectedRole: "super_admin" });
+  }
+
+  if (!inviteToken) {
+    throw new UnauthorizedError(
+      "Admin account not found. Super admin accounts are provisioned by the system administrator.",
+    );
+  }
+
+  await validateAndConsumeAdminInvite(inviteToken, profile.email);
+
   const user = await findOrCreateAdmin(profile);
+  await markInviteUsedBy(inviteToken, user._id.toString());
+
   return authenticateUser(user, { expectedRole: "super_admin" });
 };
 

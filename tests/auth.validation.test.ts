@@ -1,46 +1,71 @@
 import { describe, expect, it } from "vitest";
-import { adminLoginSchema } from "../src/modules/auth/auth.validation";
+import {
+  adminEmailLoginSchema,
+  adminEmailRegisterSchema,
+  cafeOwnerLoginSchema,
+} from "../src/modules/auth/auth.validation";
 
 describe("auth.validation", () => {
-  it("requires google token when provider is google", () => {
-    const result = adminLoginSchema.safeParse({
-      body: {
-        provider: "google",
-      },
+  it("requires email and password for admin login", () => {
+    const result = adminEmailLoginSchema.safeParse({
+      body: { email: "admin@test.com" },
     });
-
     expect(result.success).toBe(false);
   });
 
-  it("requires apple identity token when provider is apple", () => {
-    const result = adminLoginSchema.safeParse({
+  it("accepts valid admin email login", () => {
+    const result = adminEmailLoginSchema.safeParse({
       body: {
-        provider: "apple",
+        email: "admin@gravly.com",
+        password: "password123",
       },
     });
-
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts admin login with google token", () => {
-    const result = adminLoginSchema.safeParse({
-      body: {
-        provider: "google",
-        token: "google-id-token",
-      },
-    });
-
     expect(result.success).toBe(true);
   });
 
-  it("accepts admin login with apple token", () => {
-    const result = adminLoginSchema.safeParse({
+  it("requires name email password for admin register", () => {
+    const result = adminEmailRegisterSchema.safeParse({
       body: {
-        provider: "apple",
-        identityToken: "apple-identity-token",
+        email: "admin@gravly.com",
+        password: "password123",
       },
     });
+    expect(result.success).toBe(false);
+  });
 
+  it("accepts valid admin register payload", () => {
+    const result = adminEmailRegisterSchema.safeParse({
+      body: {
+        name: "Admin",
+        email: "admin@gravly.com",
+        password: "password123",
+        inviteToken: "bootstrap-token",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("requires google token for cafe owner login", () => {
+    const result = cafeOwnerLoginSchema.safeParse({
+      body: { provider: "google" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("requires apple identity token for cafe owner login", () => {
+    const result = cafeOwnerLoginSchema.safeParse({
+      body: { provider: "apple" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts valid apple cafe owner login", () => {
+    const result = cafeOwnerLoginSchema.safeParse({
+      body: {
+        provider: "apple",
+        identityToken: "apple-token-123",
+      },
+    });
     expect(result.success).toBe(true);
   });
 });

@@ -1,6 +1,13 @@
-import { getIO } from "./socket";
+import { getIO } from "./socket.registry";
 import logger from "../config/logger.config";
 import { OrderStatus, DeliveryStatus } from "../modules/order/order.constant";
+import { emitAdminOrderEvent as emitAdminOrderEventToRoom } from "./admin";
+import type { AdminSocketEvent } from "./admin";
+import {
+  emitOwnerNewOrder,
+  emitOwnerOrderCancelled,
+} from "./owner";
+import { SOCKET_ROOMS } from "./constants";
 
 export interface OrderStatusPayload {
   orderId: string;
@@ -31,7 +38,12 @@ export const emitNewOrderToCafe = (
   orderData: unknown,
 ): void => {
   try {
-    getIO().to(`cafe:${cafeId}`).emit("order:new", orderData);
+    emitOwnerNewOrder(cafeId, orderData);
+
+    // Legacy event for backward compatibility
+    getIO()
+      .to(SOCKET_ROOMS.cafe(cafeId))
+      .emit("order:new", orderData);
 
     logger.info("New order notification sent to cafe", {
       cafeId,
@@ -41,6 +53,17 @@ export const emitNewOrderToCafe = (
       cafeId,
       error,
     });
+  }
+};
+
+export const emitOrderCancelledToCafe = (
+  cafeId: string,
+  orderData: unknown,
+): void => {
+  try {
+    emitOwnerOrderCancelled(cafeId, orderData);
+  } catch (error) {
+    logger.error("Failed to emit order cancelled to cafe", { cafeId, error });
   }
 };
 
@@ -126,17 +149,9 @@ export const emitOrderCancelled = (
  * EMIT ADMIN ORDER EVENT
  * =========================================================
  */
-export const emitAdminOrderEvent = (event: string, payload: unknown): void => {
-  try {
-    getIO().to("admins").emit(event, payload);
-
-    logger.info("Admin event emitted", {
-      event,
-    });
-  } catch (error) {
-    logger.error("Failed to emit admin event", {
-      event,
-      error,
-    });
-  }
+export const emitAdminOrderEvent = (
+  event: string,
+  payload: unknown,
+): void => {
+  emitAdminOrderEventToRoom(event as AdminSocketEvent, payload);
 };

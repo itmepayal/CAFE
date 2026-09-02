@@ -5,6 +5,9 @@ import { serverConfig } from "../config";
 import { findCafeByUserId } from "../modules/cafes/cafe.repository";
 import { findOrderByIdRepo } from "../modules/order/order.repository";
 import logger from "../config/logger.config";
+import { SOCKET_ROOMS } from "./constants";
+import { deliverAdminInitialSnapshot } from "./admin/admin.notifier";
+import { deliverOwnerInitialSnapshot } from "./owner/owner.notifier";
 
 interface SocketUser {
   id: string;
@@ -50,6 +53,51 @@ export const authenticateSocket = (
   }
 };
 
+export const autoJoinAdminRoom = (socket: Socket): void => {
+  const user = socket.data.user as SocketUser;
+
+  if (user.role !== "super_admin") {
+    return;
+  }
+
+  socket.join(SOCKET_ROOMS.ADMINS);
+  logger.info("Admin auto-joined room on connect", {
+    socketId: socket.id,
+    userId: user.id,
+  });
+};
+
+export const autoJoinOwnerCafeRoom = async (socket: Socket): Promise<boolean> => {
+  const user = socket.data.user as SocketUser;
+
+  if (user.role !== "cafe_owner") {
+    return false;
+  }
+
+  const cafe = await findCafeByUserId(user.id);
+
+  if (!cafe || cafe.status !== "approved") {
+    logger.info("Owner socket connect skipped — cafe not approved", {
+      socketId: socket.id,
+      userId: user.id,
+      cafeStatus: cafe?.status,
+    });
+    return false;
+  }
+
+  const cafeId = cafe._id.toString();
+  socket.join(SOCKET_ROOMS.cafe(cafeId));
+  socket.data.cafeId = cafeId;
+
+  logger.info("Owner auto-joined cafe room on connect", {
+    socketId: socket.id,
+    userId: user.id,
+    cafeId,
+  });
+
+  return true;
+};
+
 export const registerSocketRoomHandlers = (socket: Socket): void => {
   const user = socket.data.user as SocketUser;
 
@@ -63,13 +111,13 @@ export const registerSocketRoomHandlers = (socket: Socket): void => {
       return;
     }
 
-    socket.join(`student:${userId}`);
+    socket.join(SOCKET_ROOMS.student(userId));
     logger.info("Student joined room", { socketId: socket.id, userId });
   });
 
   socket.on("join:cafe", async ({ cafeId }: { cafeId: string }): Promise<void> => {
     if (user.role === "super_admin") {
-      socket.join(`cafe:${cafeId}`);
+      socket.join(SOCKET_ROOMS.cafe(cafeId));
       return;
     }
 
@@ -93,7 +141,7 @@ export const registerSocketRoomHandlers = (socket: Socket): void => {
       return;
     }
 
-    socket.join(`cafe:${cafeId}`);
+    socket.join(SOCKET_ROOMS.cafe(cafeId));
     logger.info("Cafe joined room", { socketId: socket.id, cafeId });
   });
 
@@ -129,7 +177,7 @@ export const registerSocketRoomHandlers = (socket: Socket): void => {
           return;
         }
 
-        socket.join(`order:${orderId}`);
+        socket.join(SOCKET_ROOMS.order(orderId));
         logger.info("Order room joined", { socketId: socket.id, orderId });
       } catch (error) {
         logger.warn("Failed to join order room", {
@@ -150,7 +198,24 @@ export const registerSocketRoomHandlers = (socket: Socket): void => {
       return;
     }
 
-    socket.join("admins");
+    socket.join(SOCKET_ROOMS.ADMINS);
     logger.info("Admin joined room", { socketId: socket.id, userId: user.id });
+    void deliverAdminInitialSnapshot(socket, user.id);
+  });
+
+  socket.on("join:owner", async (): Promise<void> => {
+    if (user.role !== "cafe_owner") {
+      logger.warn("Unauthorized owner room join attempt", {
+        socketId: socket.id,
+        userId: user.id,
+      });
+      return;
+    }
+
+    const joined = await autoJoinOwnerCafeRoom(socket);
+
+    if (joined) {
+      void deliverOwnerInitialSnapshot(socket, user.id);
+    }
   });
 };

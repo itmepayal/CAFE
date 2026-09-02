@@ -206,3 +206,34 @@ export const createAdminAppleUser = async (data: {
 
   return user;
 };
+
+export const findUserByEmailWithPassword = async (
+  email: string,
+): Promise<IUser | null> => {
+  return User.findOne({ email: email.toLowerCase().trim() })
+    .select("+passwordHash")
+    .catch(() => {
+      throw new InternalServerError("Failed to find user");
+    });
+};
+
+export const createAdminEmailUser = async (data: {
+  name: string;
+  email: string;
+  passwordHash: string;
+}): Promise<IUser> => {
+  const normalizedEmail = data.email.toLowerCase().trim();
+
+  return User.create({
+    name: data.name.trim(),
+    email: normalizedEmail,
+    provider: "email",
+    providerId: `email:${normalizedEmail}`,
+    passwordHash: data.passwordHash,
+    role: "super_admin",
+    isBlocked: false,
+    isEmailVerified: true,
+  }).catch(() => {
+    throw new InternalServerError("Failed to create admin user");
+  });
+};

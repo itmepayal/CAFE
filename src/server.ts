@@ -2,7 +2,7 @@ import { connectDB } from "./config/db.config";
 import logger from "./config/logger.config";
 import { serverConfig } from "./config";
 import { initializeSocket } from "./socket/socket";
-import { startOrderAutoCancelJob } from "./jobs/order.job";
+import { startOrderAutoCancelJob, startSettlementAutoSettleJob } from "./jobs/order.job";
 import createApp from "./app";
 
 const startServer = async (): Promise<void> => {
@@ -20,6 +20,7 @@ const startServer = async (): Promise<void> => {
 
     initializeSocket(server);
     startOrderAutoCancelJob();
+    startSettlementAutoSettleJob();
 
     server.on("error", (error) => {
       logger.error("Server startup error", {

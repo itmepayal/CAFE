@@ -86,6 +86,7 @@ export const updateCafeSchema = z.object({
       .string()
       .regex(/^[0-9]{9,18}$/, "Invalid account number")
       .optional(),
+    bankName: z.string().trim().min(2).max(100).optional(),
     ifscCode: z
       .string()
       .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code")
@@ -238,5 +239,20 @@ export const getMyComplaintsSchema = z.object({
       .string()
       .optional()
       .transform((val) => (val ? Number(val) : 10)),
+  }),
+});
+
+/**
+ * =========================================================
+ * OWNER TRANSACTIONS
+ * =========================================================
+ */
+export const getOwnerTransactionsSchema = z.object({
+  query: z.object({
+    from: z.string().optional(),
+    to: z.string().optional(),
+    settlementStatus: z.enum(["pending", "settled"]).optional(),
+    page: z.coerce.number().min(1).default(1),
+    limit: z.coerce.number().min(1).max(100).default(20),
   }),
 });
