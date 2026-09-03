@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 
 import {
   createOrderService,
+  createOrderFromCartService,
   getStudentOrdersService,
   getOrderByNumberForStudentService,
   cancelOrderService,
@@ -52,6 +53,41 @@ export const createOrderController = async (
 
 /**
  * =========================================================
+ * CREATE ORDER FROM CART
+ * =========================================================
+ */
+export const createOrderFromCartController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const studentId = req?.user?.id as string;
+    const { paymentMethod, notes, orderType, deliveryAddress } = req.body;
+
+    const { order, paymentSessionId } = await createOrderFromCartService(
+      studentId,
+      {
+        paymentMethod,
+        notes,
+        orderType,
+        deliveryAddress,
+      },
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Order created successfully",
+      data: order,
+      paymentSessionId,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * =========================================================
  * GET ORDERS BY STUDENT
  * =========================================================
  */
@@ -63,11 +99,23 @@ export const getMyOrdersController = async (
   try {
     const studentId = req?.user?.id as string;
 
-    const orders = await getStudentOrdersService(studentId);
+    const result = await getStudentOrdersService(studentId, {
+      active: req.query.active as boolean | undefined,
+      history: req.query.history as boolean | undefined,
+      orderType: req.query.orderType as "pickup" | "delivery" | undefined,
+      page: req.query.page ? Number(req.query.page) : 1,
+      limit: req.query.limit ? Number(req.query.limit) : 20,
+    });
 
     res.status(200).json({
       success: true,
-      data: orders,
+      data: result.data,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.pages,
+      },
     });
   } catch (error) {
     next(error);

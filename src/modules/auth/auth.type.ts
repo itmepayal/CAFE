@@ -20,6 +20,7 @@ export interface UpdateProfilePayload {
   name?: string;
   phone?: string;
   university?: string;
+  hostel?: string;
   profileImage?: string;
 }
 

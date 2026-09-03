@@ -12,6 +12,16 @@ import {
   clearRegistrationDraftService,
 } from "./cafe-draft.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
+import { collectFigmaRegistrationMediaErrors } from "./cafe.validation";
+import { BadRequestError } from "../../utils/errors/app.error";
+
+type UploadedFiles = Record<string, Express.Multer.File[] | undefined>;
+
+const uploadFile = async (file: Express.Multer.File, folder: string) =>
+  uploadToCloudinary(file.path, folder);
+
+const uploadMany = async (files: Express.Multer.File[], folder: string) =>
+  Promise.all(files.map((file) => uploadFile(file, folder)));
 
 // =========================================
 // REGISTER CAFE CONTROLLER
@@ -23,107 +33,86 @@ export const registerCafeController = async (
 ) => {
   try {
     const userId = req.user?.id as string;
-    const files = req.files as any;
+    const files = req.files as UploadedFiles;
 
-    const cafeImage = files?.cafeImage?.[0]
-      ? await uploadToCloudinary(files.cafeImage[0].path, "cafes")
+    const layoutPhotos = files?.layoutPhotos?.length
+      ? await uploadMany(files.layoutPhotos, "cafes/layout")
+      : [];
+
+    const ownerPhoto = files?.ownerPhoto?.[0]
+      ? await uploadFile(files.ownerPhoto[0], "cafes")
       : "";
 
-    const menuImage = files?.menuImage?.[0]
-      ? await uploadToCloudinary(files.menuImage[0].path, "cafes")
+    const shopEstablishmentCertificate = files?.shopEstablishmentCertificate?.[0]
+      ? await uploadFile(files.shopEstablishmentCertificate[0], "cafes/docs")
       : "";
 
-    const gallery =
-      files?.gallery?.length > 0
-        ? await Promise.all(
-            files.gallery.map((file: any) =>
-              uploadToCloudinary(file.path, "cafes/gallery"),
-            ),
-          )
-        : [];
+    const bankPassbookPhoto = files?.bankPassbookPhoto?.[0]
+      ? await uploadFile(files.bankPassbookPhoto[0], "cafes/docs")
+      : "";
 
-    const layoutPhotos =
-      files?.layoutPhotos?.length > 0
-        ? await Promise.all(
-            files.layoutPhotos.map((file: any) =>
-              uploadToCloudinary(file.path, "cafes/layout"),
-            ),
-          )
-        : [];
+    const mediaErrors = collectFigmaRegistrationMediaErrors({
+      ownerPhoto,
+      layoutPhotos,
+      shopEstablishmentCertificate,
+      bankPassbookPhoto,
+    });
 
-    const address = {
-      street: req.body.street,
-      area: req.body.area,
-      city: req.body.city,
-      state: req.body.state,
-      pincode: req.body.pincode,
-      landmark: req.body.landmark,
-    };
-
-    const location = {
-      latitude: req.body.latitude ? Number(req.body.latitude) : undefined,
-      longitude: req.body.longitude ? Number(req.body.longitude) : undefined,
-    };
-
-    const documents = {
-      aadharNumber: req.body.aadharNumber,
-      panNumber: req.body.panNumber,
-      fssaiNumber: req.body.fssaiNumber,
-      aadharPhoto: files?.aadharPhoto?.[0]
-        ? await uploadToCloudinary(files.aadharPhoto[0].path, "cafes/docs")
-        : "",
-      panPhoto: files?.panPhoto?.[0]
-        ? await uploadToCloudinary(files.panPhoto[0].path, "cafes/docs")
-        : "",
-      fssaiCertificate: files?.fssaiCertificate?.[0]
-        ? await uploadToCloudinary(files.fssaiCertificate[0].path, "cafes/docs")
-        : "",
-    };
-
-    const bankDetails = {
-      accountHolderName: req.body.accountHolderName,
-      accountNumber: req.body.accountNumber,
-      bankName: req.body.bankName,
-      ifscCode: req.body.ifscCode,
-      upiId: req.body.upiId,
-      gstId: req.body.gstId ?? "",
-      bankPassbookPhoto: files?.bankPassbookPhoto?.[0]
-        ? await uploadToCloudinary(
-            files.bankPassbookPhoto[0].path,
-            "cafes/docs",
-          )
-        : "",
-    };
-
-    const socialMedia = {
-      instagram: req.body.instagram ?? "",
-      facebook: req.body.facebook ?? "",
-      website: req.body.website ?? "",
-    };
-
-    const supportsDelivery = req.body.supportsDelivery === "true";
+    if (mediaErrors.length > 0) {
+      throw new BadRequestError(mediaErrors.join(". "));
+    }
 
     const payload = {
       cafeName: req.body.cafeName,
       ownerName: req.body.ownerName,
-      description: req.body.description,
+      description: req.body.description ?? "",
       mobile: req.body.mobile,
-      email: req.body.email,
+      email: req.body.email ?? "",
 
-      address,
-      location,
+      address: {
+        searchLocation: req.body.searchLocation,
+        street: req.body.street,
+        area: req.body.area,
+        city: req.body.city,
+        state: req.body.state,
+        pincode: req.body.pincode,
+        landmark: req.body.landmark,
+      },
 
-      cafeImage,
-      menuImage,
-      gallery,
+      location: {
+        latitude: req.body.latitude ? Number(req.body.latitude) : undefined,
+        longitude: req.body.longitude ? Number(req.body.longitude) : undefined,
+      },
+
+      cafeImage: ownerPhoto,
+      menuImage: "",
+      gallery: layoutPhotos,
       layoutPhotos,
+      interiorPhotos: [],
+      exteriorPhotos: [],
 
-      documents,
-      bankDetails,
-      socialMedia,
-      registrationFeedback: req.body.registrationFeedback ?? "",
+      documents: {
+        aadharNumber: "",
+        aadharPhoto: "",
+        panNumber: "",
+        panPhoto: "",
+        fssaiNumber: "",
+        fssaiCertificate: shopEstablishmentCertificate,
+      },
 
-      supportsDelivery,
+      bankDetails: {
+        accountHolderName: req.body.accountHolderName,
+        accountNumber: req.body.accountNumber,
+        bankName: req.body.bankName ?? "",
+        ifscCode: req.body.ifscCode,
+        upiId: "",
+        gstId: req.body.gstId ?? "",
+        bankPassbookPhoto,
+      },
+
+      socialMedia: { instagram: "", facebook: "", website: "" },
+      registrationFeedback: "",
+      supportsDelivery: req.body.supportsDelivery === "true",
     };
 
     const cafe = await registerCafeService(userId, payload);
@@ -169,94 +158,50 @@ export const saveRegistrationDraftStepController = async (
   try {
     const userId = req.user?.id as string;
     const step = Number(req.params.step);
-    const files = req.files as any;
+    const files = req.files as UploadedFiles;
     let stepData: Record<string, unknown> = { ...req.body };
 
     if (step === 4) {
-      if (files?.cafeImage?.[0]) {
-        stepData.cafeImage = await uploadToCloudinary(
-          files.cafeImage[0].path,
-          "cafes",
-        );
-      }
-
-      if (files?.menuImage?.[0]) {
-        stepData.menuImage = await uploadToCloudinary(
-          files.menuImage[0].path,
-          "cafes",
-        );
-      }
-
-      if (files?.gallery?.length) {
-        stepData.gallery = await Promise.all(
-          files.gallery.map((file: any) =>
-            uploadToCloudinary(file.path, "cafes/gallery"),
-          ),
-        );
-      }
-
-      if (files?.layoutPhotos?.length) {
-        stepData.layoutPhotos = await Promise.all(
-          files.layoutPhotos.map((file: any) =>
-            uploadToCloudinary(file.path, "cafes/layout"),
-          ),
-        );
-      }
-
-      if (files?.aadharPhoto?.[0]) {
-        stepData.aadharPhoto = await uploadToCloudinary(
-          files.aadharPhoto[0].path,
-          "cafes/docs",
-        );
-      }
-
-      if (files?.panPhoto?.[0]) {
-        stepData.panPhoto = await uploadToCloudinary(
-          files.panPhoto[0].path,
-          "cafes/docs",
-        );
-      }
-
-      if (files?.fssaiCertificate?.[0]) {
-        stepData.fssaiCertificate = await uploadToCloudinary(
-          files.fssaiCertificate[0].path,
-          "cafes/docs",
-        );
-      }
-
-      if (files?.bankPassbookPhoto?.[0]) {
-        stepData.bankPassbookPhoto = await uploadToCloudinary(
-          files.bankPassbookPhoto[0].path,
-          "cafes/docs",
-        );
-      }
-
       const existingDraft = await getRegistrationDraftService(userId);
-      const existingStep4 = (existingDraft as any).step4 ?? {};
+      const existingStep4 = (existingDraft as { step4?: Record<string, unknown> }).step4 ?? {};
+
+      if (files?.ownerPhoto?.[0]) {
+        stepData.ownerPhoto = await uploadFile(files.ownerPhoto[0], "cafes");
+      }
+
+      const newLayout = files?.layoutPhotos?.length
+        ? await uploadMany(files.layoutPhotos, "cafes/layout")
+        : [];
 
       stepData = {
         ...existingStep4,
         ...stepData,
-        gallery: [
-          ...(existingStep4.gallery ?? []),
-          ...((stepData.gallery as string[]) ?? []),
-        ],
         layoutPhotos: [
-          ...(existingStep4.layoutPhotos ?? []),
-          ...((stepData.layoutPhotos as string[]) ?? []),
+          ...((existingStep4.layoutPhotos as string[]) ?? []),
+          ...newLayout,
         ],
       };
     }
 
     if (step === 5) {
-      stepData = {
-        registrationFeedback: req.body.registrationFeedback ?? "",
-        socialMedia: {
-          instagram: req.body.instagram ?? "",
-          facebook: req.body.facebook ?? "",
-          website: req.body.website ?? "",
-        },
-      };
+      const existingDraft = await getRegistrationDraftService(userId);
+      const existingStep5 = (existingDraft as { step5?: Record<string, unknown> }).step5 ?? {};
+
+      if (files?.shopEstablishmentCertificate?.[0]) {
+        stepData.shopEstablishmentCertificate = await uploadFile(
+          files.shopEstablishmentCertificate[0],
+          "cafes/docs",
+        );
+      }
+
+      if (files?.bankPassbookPhoto?.[0]) {
+        stepData.bankPassbookPhoto = await uploadFile(
+          files.bankPassbookPhoto[0],
+          "cafes/docs",
+        );
+      }
+
+      stepData = { ...existingStep5, ...stepData };
     }
 
     const draft = await saveRegistrationDraftStepService(userId, step, stepData);
@@ -325,10 +270,17 @@ export const getApprovedCafesController = async (
   try {
     const search = req.query.search as string | undefined;
     const city = req.query.city as string | undefined;
+    const isOpen = req.query.isOpen as boolean | undefined;
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 10;
 
-    const result = await getApprovedCafesService(search, city, page, limit);
+    const result = await getApprovedCafesService(
+      search,
+      city,
+      page,
+      limit,
+      isOpen,
+    );
 
     res.json({
       success: true,

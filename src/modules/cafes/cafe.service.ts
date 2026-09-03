@@ -3,6 +3,7 @@ import {
   findApprovedCafes,
   findCafeById,
   findCafeByUserId,
+  updatedCafe,
 } from "./cafe.repository";
 import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
@@ -17,6 +18,33 @@ export const registerCafeService = async (userId: string, payload: any) => {
   const existingCafe = await findCafeByUserId(userId);
 
   if (existingCafe) {
+    if (existingCafe.status === "rejected") {
+      const cafe = await updatedCafe(existingCafe._id.toString(), {
+        ...payload,
+        userId,
+        status: "pending",
+        isBlocked: false,
+        isVisible: false,
+        isOpen: false,
+        isFeatured: false,
+        supportsDelivery: payload.supportsDelivery ?? false,
+        adminNote: "",
+        rejectedAt: null,
+        approvedAt: null,
+        approvedBy: null,
+      });
+
+      if (!cafe) {
+        throw new BadRequestError("Failed to re-submit cafe registration");
+      }
+
+      logger.info(`Rejected cafe re-submitted with id: ${cafe._id}`);
+
+      emitAdminCafeRequest(cafe);
+
+      return cafe;
+    }
+
     logger.warn(`User ${userId} already has a registered cafe`);
     throw new BadRequestError("Cafe already registered for this user");
   }
@@ -47,14 +75,15 @@ export const getApprovedCafesService = async (
   city?: string,
   page: number = 1,
   limit: number = 10,
+  isOpen?: boolean,
 ) => {
   logger.info(
     `Fetching approved cafes (search: ${search ?? "none"}, city: ${
       city ?? "none"
-    }, page: ${page}, limit: ${limit})`,
+    }, isOpen: ${isOpen ?? "any"}, page: ${page}, limit: ${limit})`,
   );
 
-  return await findApprovedCafes(search, city, page, limit);
+  return await findApprovedCafes(search, city, page, limit, isOpen);
 };
 
 // =========================================

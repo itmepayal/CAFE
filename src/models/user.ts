@@ -26,6 +26,7 @@ export interface IUser extends Document {
   favoriteCafes: mongoose.Types.ObjectId[];
 
   university: string;
+  hostel: string;
 
   lastLoginAt: Date | null;
   loginCount: number;
@@ -123,6 +124,12 @@ const userSchema = new Schema<IUser>(
     ],
 
     university: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    hostel: {
       type: String,
       trim: true,
       default: "",

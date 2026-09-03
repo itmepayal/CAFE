@@ -255,6 +255,7 @@ export const findOrdersByCafeId = async (
 ) => {
   const {
     status,
+    active,
     paymentStatus,
     deliveryStatus,
     search,
@@ -266,7 +267,11 @@ export const findOrdersByCafeId = async (
 
   const filter: Record<string, any> = { cafeId };
 
-  if (status) filter.status = status;
+  if (active) {
+    filter.status = { $in: ACTIVE_ORDER_STATUSES };
+  } else if (status) {
+    filter.status = status;
+  }
   if (paymentStatus) filter.paymentStatus = paymentStatus;
   if (deliveryStatus) filter.deliveryStatus = deliveryStatus;
 

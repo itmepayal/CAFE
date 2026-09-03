@@ -1,13 +1,13 @@
 import { z } from "zod";
+import { indianMobileSchema } from "../../utils/validation/indian-fields";
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(2).max(100).optional(),
-  phone: z
-    .string()
-    .regex(/^[6-9]\d{9}$/, "Invalid phone number")
-    .optional(),
-  university: z.string().min(2).max(150).optional(),
-  profileImage: z.string().url().optional(),
+  body: z.object({
+    name: z.string().min(2).max(100).optional(),
+    phone: indianMobileSchema.optional(),
+    university: z.string().min(2).max(150).optional(),
+    hostel: z.string().min(2).max(100).optional(),
+  }),
 });
 
 export const googleLoginSchema = z.object({

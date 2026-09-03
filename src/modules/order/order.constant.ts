@@ -17,6 +17,9 @@ export const PAYMENT_METHODS = ["upi", "card", "wallet", "cash"] as const;
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+/** Flat delivery fee (₹) applied when orderType is delivery. */
+export const DEFAULT_DELIVERY_CHARGE = 29;
+
 // =========================================================
 // ORDER
 // =========================================================
@@ -32,6 +35,20 @@ export const ORDER_STATUSES = [
 ] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+export const STUDENT_ACTIVE_ORDER_STATUSES: OrderStatus[] = [
+  "pending",
+  "accepted",
+  "preparing",
+  "ready",
+  "out_for_delivery",
+];
+
+export const STUDENT_HISTORY_ORDER_STATUSES: OrderStatus[] = [
+  "completed",
+  "cancelled",
+  "rejected",
+];
 
 export const CANCELLABLE_STATUSES: OrderStatus[] = ["pending", "accepted"];
 

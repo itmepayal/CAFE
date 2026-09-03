@@ -4,6 +4,8 @@ import CafeRegistrationDraft, {
 import { findCafeByUserId } from "../cafes/cafe.repository";
 import { BadRequestError } from "../../utils/errors/app.error";
 
+type DraftStepKey = "step1" | "step2" | "step3" | "step4" | "step5";
+
 export const findDraftByUserId = async (
   userId: string,
 ): Promise<ICafeRegistrationDraft | null> => {
@@ -16,24 +18,27 @@ export const upsertDraftStep = async (
   data: Record<string, unknown>,
 ): Promise<ICafeRegistrationDraft> => {
   const existingCafe = await findCafeByUserId(userId);
-  if (existingCafe) {
+  if (existingCafe && existingCafe.status !== "rejected") {
     throw new BadRequestError("Cafe already registered for this user");
   }
 
-  const stepKey = `step${step}` as
-    | "step1"
-    | "step2"
-    | "step3"
-    | "step4"
-    | "step5";
-  const update: Record<string, unknown> = {
-    [stepKey]: data,
-    currentStep: Math.max(step, 1),
-  };
+  const stepKey = `step${step}` as DraftStepKey;
+  const existingDraft = await CafeRegistrationDraft.findOne({ userId });
+  const previousStep = (existingDraft?.[stepKey] ?? {}) as Record<
+    string,
+    unknown
+  >;
+
+  const mergedStep = { ...previousStep, ...data };
 
   const draft = await CafeRegistrationDraft.findOneAndUpdate(
     { userId },
-    { $set: update },
+    {
+      $set: {
+        [stepKey]: mergedStep,
+        currentStep: Math.max(step, existingDraft?.currentStep ?? 1),
+      },
+    },
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
 
@@ -57,6 +62,7 @@ export const buildRegistrationPayloadFromDraft = (
     email: step1.email ?? "",
 
     address: {
+      searchLocation: step2.searchLocation,
       street: step2.street,
       area: step2.area,
       city: step2.city,
@@ -70,36 +76,33 @@ export const buildRegistrationPayloadFromDraft = (
       longitude: step2.longitude,
     },
 
-    cafeImage: step4.cafeImage ?? "",
-    menuImage: step4.menuImage ?? "",
-    gallery: step4.gallery ?? [],
+    cafeImage: step4.ownerPhoto ?? "",
+    menuImage: "",
+    gallery: step4.layoutPhotos ?? [],
     layoutPhotos: step4.layoutPhotos ?? [],
+    interiorPhotos: [],
+    exteriorPhotos: [],
 
     documents: {
-      aadharNumber: step4.aadharNumber,
-      panNumber: step4.panNumber,
-      fssaiNumber: step4.fssaiNumber,
-      aadharPhoto: step4.aadharPhoto ?? "",
-      panPhoto: step4.panPhoto ?? "",
-      fssaiCertificate: step4.fssaiCertificate ?? "",
+      aadharNumber: "",
+      aadharPhoto: "",
+      panNumber: "",
+      panPhoto: "",
+      fssaiNumber: "",
+      fssaiCertificate: step5.shopEstablishmentCertificate ?? "",
     },
 
     bankDetails: {
       accountHolderName: step3.accountHolderName,
       accountNumber: step3.accountNumber,
-      bankName: step3.bankName,
+      bankName: step3.bankName ?? "",
       ifscCode: step3.ifscCode,
-      upiId: step3.upiId,
+      upiId: "",
       gstId: step3.gstId ?? "",
-      bankPassbookPhoto: step4.bankPassbookPhoto ?? "",
+      bankPassbookPhoto: step5.bankPassbookPhoto ?? "",
     },
 
-    socialMedia: {
-      instagram: step5?.socialMedia?.instagram ?? "",
-      facebook: step5?.socialMedia?.facebook ?? "",
-      website: step5?.socialMedia?.website ?? "",
-    },
-
-    registrationFeedback: step5?.registrationFeedback ?? "",
+    socialMedia: { instagram: "", facebook: "", website: "" },
+    registrationFeedback: "",
   };
 };

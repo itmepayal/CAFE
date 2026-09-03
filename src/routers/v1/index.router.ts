@@ -7,12 +7,14 @@ import cafeRouter from "../../modules/cafes/cafe.route";
 import ownerRouter from "../../modules/owner/owner.route";
 import cartRouter from "../../modules/carts/cart.route";
 import orderRouter from "../../modules/order/order.route";
+import hostelRouter from "../../modules/hostel/hostel.route";
 
 const v1Router = express.Router();
 
 v1Router.use("/auth", authRouter);
 v1Router.use("/admin", adminRouter);
 v1Router.use("/owners", ownerRouter);
+v1Router.use("/hostels", hostelRouter);
 v1Router.use("/menus", menuRouter);
 v1Router.use("/cafes", cafeRouter);
 v1Router.use("/carts", cartRouter);

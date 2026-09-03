@@ -43,6 +43,7 @@ import {
 } from "../../constants";
 import { processOrderRefund } from "../payment/refund.service";
 import { logger } from "../../config/logger.config";
+import { DEFAULT_ORDER_REJECT_REASON } from "../../utils/validation/indian-fields";
 import { cancelOrderRepo } from "../order/order.repository";
 import { findOrderByIdRepo } from "../order/order.repository";
 import {
@@ -870,15 +871,12 @@ export const acceptOrderService = async (
 export const rejectOrderService = async (
   orderId: string,
   userId: string,
-  reason: string,
+  reason?: string,
 ): Promise<IOrder> => {
   const { order } = await getOwnedOrderForApprovedCafe(orderId, userId);
 
-  const rejectionReason = reason?.trim();
-
-  if (!rejectionReason) {
-    throw new BadRequestError("A rejection reason is required.");
-  }
+  const rejectionReason =
+    reason?.trim() || DEFAULT_ORDER_REJECT_REASON;
 
   if (rejectionReason.length > 500) {
     throw new BadRequestError("Rejection reason cannot exceed 500 characters.");

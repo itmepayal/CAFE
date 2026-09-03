@@ -15,12 +15,17 @@ export const findApprovedCafes = async (
   city?: string,
   page: number = 1,
   limit: number = 10,
+  isOpen?: boolean,
 ): Promise<{ cafes: ICafe[]; total: number; page: number; limit: number }> => {
   const filter: any = {
     status: "approved",
     isBlocked: false,
     isVisible: true,
   };
+
+  if (typeof isOpen === "boolean") {
+    filter.isOpen = isOpen;
+  }
 
   if (search) {
     filter.cafeName = { $regex: search, $options: "i" };

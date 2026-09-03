@@ -29,17 +29,24 @@ const cafeRouter = Router();
  * @swagger
  * /cafes:
  *   get:
- *     summary: Get all approved cafes
- *     tags: [Cafe]
+ *     summary: List approved cafes (Home screen)
+ *     description: Figma — Home cafe cards with rating and open status.
+ *     tags: [Student Discovery]
  *     parameters:
  *       - in: query
  *         name: search
  *         schema:
  *           type: string
+ *         description: Search cafe name
  *       - in: query
  *         name: city
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: isOpen
+ *         schema:
+ *           type: boolean
+ *         description: Filter open cafes only
  *       - in: query
  *         name: page
  *         schema:
@@ -53,6 +60,16 @@ const cafeRouter = Router();
  *     responses:
  *       200:
  *         description: Approved cafes fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/StudentCafeCard'
  */
 cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
 
@@ -74,13 +91,14 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *               - cafeName
  *               - ownerName
  *               - mobile
- *               - aadharNumber
- *               - panNumber
- *               - fssaiNumber
  *               - accountHolderName
  *               - accountNumber
+ *               - confirmAccountNumber
  *               - ifscCode
- *               - upiId
+ *               - ownerPhoto
+ *               - layoutPhotos
+ *               - shopEstablishmentCertificate
+ *               - bankPassbookPhoto
  *             properties:
  *               cafeName:
  *                 type: string
@@ -108,50 +126,28 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *                 type: number
  *               longitude:
  *                 type: number
- *               supportsDelivery:
- *                 type: boolean
- *                 default: false
- *                 example: true
- *                 description: Whether the cafe provides delivery service.
- *               aadharNumber:
+ *               gstId:
  *                 type: string
- *               panNumber:
- *                 type: string
- *               fssaiNumber:
- *                 type: string
+ *                 description: Optional GST ID
  *               accountHolderName:
  *                 type: string
  *               accountNumber:
+ *                 type: string
+ *               confirmAccountNumber:
  *                 type: string
  *               bankName:
  *                 type: string
  *               ifscCode:
  *                 type: string
- *               upiId:
- *                 type: string
- *               cafeImage:
+ *               ownerPhoto:
  *                 type: string
  *                 format: binary
- *               menuImage:
- *                 type: string
- *                 format: binary
- *               gallery:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
  *               layoutPhotos:
  *                 type: array
  *                 items:
  *                   type: string
  *                   format: binary
- *               aadharPhoto:
- *                 type: string
- *                 format: binary
- *               panPhoto:
- *                 type: string
- *                 format: binary
- *               fssaiCertificate:
+ *               shopEstablishmentCertificate:
  *                 type: string
  *                 format: binary
  *               bankPassbookPhoto:
@@ -164,15 +160,11 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
 cafeRouter.post(
   "/register",
   authenticate,
-  authorize("student", "super_admin"),
+  authorize("student", "cafe_owner", "super_admin"),
   upload.fields([
-    { name: "cafeImage", maxCount: 1 },
-    { name: "menuImage", maxCount: 1 },
-    { name: "gallery", maxCount: 10 },
+    { name: "ownerPhoto", maxCount: 1 },
     { name: "layoutPhotos", maxCount: 10 },
-    { name: "aadharPhoto", maxCount: 1 },
-    { name: "panPhoto", maxCount: 1 },
-    { name: "fssaiCertificate", maxCount: 1 },
+    { name: "shopEstablishmentCertificate", maxCount: 1 },
     { name: "bankPassbookPhoto", maxCount: 1 },
   ]),
   validate(registerCafeSchema),
@@ -180,13 +172,9 @@ cafeRouter.post(
 );
 
 const draftUpload = upload.fields([
-  { name: "cafeImage", maxCount: 1 },
-  { name: "menuImage", maxCount: 1 },
-  { name: "gallery", maxCount: 10 },
+  { name: "ownerPhoto", maxCount: 1 },
   { name: "layoutPhotos", maxCount: 10 },
-  { name: "aadharPhoto", maxCount: 1 },
-  { name: "panPhoto", maxCount: 1 },
-  { name: "fssaiCertificate", maxCount: 1 },
+  { name: "shopEstablishmentCertificate", maxCount: 1 },
   { name: "bankPassbookPhoto", maxCount: 1 },
 ]);
 
@@ -205,7 +193,7 @@ const draftUpload = upload.fields([
 cafeRouter.get(
   "/register/draft",
   authenticate,
-  authorize("student", "super_admin"),
+  authorize("student", "cafe_owner", "super_admin"),
   getRegistrationDraftController,
 );
 
@@ -213,7 +201,7 @@ cafeRouter.get(
  * @swagger
  * /cafes/register/draft/{step}:
  *   put:
- *     summary: Save a registration draft step (1-4)
+ *     summary: Save a registration draft step (1-5)
  *     tags: [Cafe]
  *     security:
  *       - cookieAuth: []
@@ -232,7 +220,7 @@ cafeRouter.get(
 cafeRouter.put(
   "/register/draft/:step",
   authenticate,
-  authorize("student", "super_admin"),
+  authorize("student", "cafe_owner", "super_admin"),
   draftUpload,
   validate(draftStepParamsSchema),
   (req, res, next) => {
@@ -269,7 +257,7 @@ cafeRouter.put(
 cafeRouter.post(
   "/register/draft/submit",
   authenticate,
-  authorize("student", "super_admin"),
+  authorize("student", "cafe_owner", "super_admin"),
   validate(submitDraftSchema),
   submitRegistrationDraftController,
 );
@@ -289,7 +277,7 @@ cafeRouter.post(
 cafeRouter.delete(
   "/register/draft",
   authenticate,
-  authorize("student", "super_admin"),
+  authorize("student", "cafe_owner", "super_admin"),
   clearRegistrationDraftController,
 );
 

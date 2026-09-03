@@ -53,13 +53,19 @@ export const findOwnerTransactions = async (
   const page = filters.page ?? 1;
   const limit = filters.limit ?? 20;
 
-  const toDate = filters.to ? new Date(filters.to) : new Date();
-  const fromDate = filters.from
-    ? new Date(filters.from)
-    : new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const hasDateRange = Boolean(filters.from || filters.to);
+  let fromDate: Date | null = null;
+  let toDate: Date | null = null;
 
-  toDate.setHours(23, 59, 59, 999);
-  fromDate.setHours(0, 0, 0, 0);
+  if (hasDateRange) {
+    toDate = filters.to ? new Date(filters.to) : new Date();
+    fromDate = filters.from
+      ? new Date(filters.from)
+      : new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    toDate.setHours(23, 59, 59, 999);
+    fromDate.setHours(0, 0, 0, 0);
+  }
 
   const cafeObjectId = new mongoose.Types.ObjectId(cafeId);
 
@@ -67,8 +73,11 @@ export const findOwnerTransactions = async (
     cafeId: cafeObjectId,
     status: "completed",
     paymentStatus: "paid",
-    createdAt: { $gte: fromDate, $lte: toDate },
   };
+
+  if (fromDate && toDate) {
+    baseMatch.createdAt = { $gte: fromDate, $lte: toDate };
+  }
 
   const pipeline: mongoose.PipelineStage[] = [
     { $match: baseMatch },
@@ -114,7 +123,15 @@ export const findOwnerTransactions = async (
           },
           {
             $project: {
-              orderId: "$_id",
+              transactionId: {
+                $toString: {
+                  $ifNull: [
+                    { $arrayElemAt: ["$settlement._id", 0] },
+                    "$_id",
+                  ],
+                },
+              },
+              orderId: { $toString: "$_id" },
               orderNumber: 1,
               customerName: {
                 $ifNull: [{ $arrayElemAt: ["$student.name", 0] }, "Customer"],
@@ -126,6 +143,13 @@ export const findOwnerTransactions = async (
               paymentMethod: 1,
               paymentStatus: 1,
               settlementStatus: 1,
+              status: {
+                $cond: [
+                  { $eq: ["$settlementStatus", "settled"] },
+                  "Settled",
+                  "Pending",
+                ],
+              },
               settledAt: 1,
               createdAt: 1,
             },

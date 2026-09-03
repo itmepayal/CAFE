@@ -4,6 +4,10 @@ import {
   InternalServerError,
   NotFoundError,
 } from "../../utils/errors/app.error";
+import {
+  STUDENT_ACTIVE_ORDER_STATUSES,
+  STUDENT_HISTORY_ORDER_STATUSES,
+} from "./order.constant";
 
 /**
  * =========================================================
@@ -149,14 +153,52 @@ export const updateOrderStatusRepo = async (
  * FIND ORDERS BY STUDENT
  * =========================================================
  */
+export interface StudentOrdersFilters {
+  active?: boolean;
+  history?: boolean;
+  orderType?: "pickup" | "delivery";
+  page?: number;
+  limit?: number;
+}
+
 export const findOrdersByStudentRepo = async (
   studentId: string,
-): Promise<IOrder[]> => {
+  filters: StudentOrdersFilters = {},
+) => {
   try {
-    return await Order.find({ studentId })
-      .populate("cafeId")
-      .sort({ createdAt: -1 })
-      .lean<IOrder[]>();
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+    const query: Record<string, unknown> = { studentId };
+
+    if (filters.active) {
+      query.status = { $in: STUDENT_ACTIVE_ORDER_STATUSES };
+    } else if (filters.history) {
+      query.status = { $in: STUDENT_HISTORY_ORDER_STATUSES };
+    }
+
+    if (filters.orderType) {
+      query.orderType = filters.orderType;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      Order.find(query)
+        .populate("cafeId")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean<IOrder[]>(),
+      Order.countDocuments(query),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    };
   } catch (error) {
     logger.error("Failed to fetch student orders", {
       studentId,

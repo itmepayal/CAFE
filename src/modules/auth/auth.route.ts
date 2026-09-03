@@ -17,6 +17,7 @@ import { upload } from "../../config/multer.config";
 import { validate } from "../../middlewares/validate.middleware";
 import { authRateLimiter } from "../../middlewares/rate-limit.middleware";
 import {
+  updateProfileSchema,
   googleLoginSchema,
   appleLoginSchema,
   adminEmailLoginSchema,
@@ -40,9 +41,8 @@ authRouter.use(authRateLimiter);
  * /auth/google:
  *   post:
  *     summary: Login or sign up as student with Google
- *     description: >
- *       Verifies Google ID token and auto-registers a new student if the account does not exist.
- *     tags: [Auth]
+ *     description: Figma — Continue with Google on Student Sign In screen.
+ *     tags: [Student Auth]
  *     requestBody:
  *       required: true
  *       content:
@@ -68,9 +68,8 @@ authRouter.post("/google", validate(googleLoginSchema), googleLoginController);
  * /auth/apple:
  *   post:
  *     summary: Login or sign up as student with Apple
- *     description: >
- *       Verifies Apple identity token and auto-registers a new student if the account does not exist.
- *     tags: [Auth]
+ *     description: Figma — Continue with Apple on Student Sign In screen.
+ *     tags: [Student Auth]
  *     requestBody:
  *       required: true
  *       content:
@@ -95,8 +94,9 @@ authRouter.post("/apple", validate(appleLoginSchema), appleLoginController);
  * @swagger
  * /auth/me:
  *   get:
- *     summary: Get current authenticated user
- *     tags: [Auth]
+ *     summary: Get current student profile
+ *     description: Figma — Profile tab header (name, email, avatar).
+ *     tags: [Student Profile]
  *     security:
  *       - cookieAuth: []
  *     responses:
@@ -111,8 +111,9 @@ authRouter.get("/me", authenticate, getCurrentUserController);
  * @swagger
  * /auth/profile:
  *   patch:
- *     summary: Update logged-in user's profile
- *     tags: [Auth]
+ *     summary: Update student profile
+ *     description: Figma — Personal Information (name, phone, university, hostel).
+ *     tags: [Student Profile]
  *     security:
  *       - cookieAuth: []
  *     requestBody:
@@ -131,6 +132,10 @@ authRouter.get("/me", authenticate, getCurrentUserController);
  *               university:
  *                 type: string
  *                 example: Nirma University
+ *               hostel:
+ *                 type: string
+ *                 example: Boys Hostel A
+ *                 description: Figma — Select Hostel screen
  *               profileImage:
  *                 type: string
  *                 format: binary
@@ -146,6 +151,7 @@ authRouter.patch(
   "/profile",
   authenticate,
   upload.single("profileImage"),
+  validate(updateProfileSchema),
   changeProfileController,
 );
 

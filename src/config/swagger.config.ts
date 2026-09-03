@@ -2,6 +2,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 import { serverConfig } from "../config";
 import { adminSwaggerSchemas } from "./admin.swagger.schemas";
 import { ownerSwaggerSchemas } from "./owner.swagger.schemas";
+import { studentSwaggerSchemas } from "./student.swagger.schemas";
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -42,6 +43,7 @@ const options: swaggerJsdoc.Options = {
       schemas: {
         ...adminSwaggerSchemas,
         ...ownerSwaggerSchemas,
+        ...studentSwaggerSchemas,
 
         Cafe: {
           type: "object",
@@ -230,6 +232,7 @@ const options: swaggerJsdoc.Options = {
     "./src/modules/**/*.routes.ts",
     "./src/socket/socket.docs.ts",
     "./src/config/owner.swagger.docs.ts",
+    "./src/config/student.swagger.docs.ts",
   ],
 };
 

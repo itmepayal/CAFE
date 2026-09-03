@@ -14,12 +14,19 @@ import {
  */
 export const getMenuItemsByCafeRepo = async (
   cafeId: string,
+  options: { availableOnly?: boolean } = {},
 ): Promise<IMenuItem[]> => {
   try {
-    return await MenuItem.find({
+    const query: Record<string, unknown> = {
       cafeId,
       isDeleted: false,
-    }).sort({
+    };
+
+    if (options.availableOnly) {
+      query.isAvailable = true;
+    }
+
+    return await MenuItem.find(query).sort({
       displayOrder: 1,
       createdAt: -1,
     });

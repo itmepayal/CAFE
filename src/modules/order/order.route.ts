@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   createOrderController,
+  createOrderFromCartController,
   getMyOrdersController,
   getOrderByNumberController,
   verifyOrderPaymentController,
@@ -12,6 +13,8 @@ import { authenticate, authorize } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate.middleware";
 import {
   createOrderSchema,
+  createOrderFromCartSchema,
+  getMyOrdersSchema,
   cancelOrderSchema,
   rateOrderSchema,
   orderNumberParamSchema,
@@ -22,8 +25,10 @@ const orderRouter = Router();
 /**
  * @swagger
  * tags:
- *   name: Orders
- *   description: Student Order Management APIs
+ *   name: Student Orders
+ *   description: >
+ *     Figma checkout, Active Orders, Online Orders, Order Details.
+ *     Delivery fee ₹29 when orderType is delivery.
  *
  * components:
  *   securitySchemes:
@@ -59,17 +64,7 @@ const orderRouter = Router();
  *           example: Less spicy
  *
  *     DeliveryAddress:
- *       type: object
- *       properties:
- *         fullAddress:
- *           type: string
- *           example: Hostel Block C, Room 204, XYZ University
- *         contactNumber:
- *           type: string
- *           example: "9876543210"
- *         landmark:
- *           type: string
- *           example: Near main gate
+ *       $ref: '#/components/schemas/StudentDeliveryAddress'
  *
  *     Order:
  *       type: object
@@ -104,7 +99,8 @@ const orderRouter = Router();
  *           example: 8.9
  *         deliveryCharge:
  *           type: number
- *           example: 0
+ *           example: 29
+ *           description: Flat ₹29 when orderType is delivery
  *         discountAmount:
  *           type: number
  *           example: 0
@@ -113,8 +109,8 @@ const orderRouter = Router();
  *           example: 186.9
  *         paymentMethod:
  *           type: string
- *           enum: [cash, online]
- *           example: online
+ *           enum: [cash, upi, card, wallet, online]
+ *           example: upi
  *         paymentStatus:
  *           type: string
  *           enum: [pending, paid, failed, refunded]
@@ -205,7 +201,7 @@ const orderRouter = Router();
  *       a Cashfree payment session is created and returned in
  *       `paymentSessionId`; the cafe/admin are only notified once the
  *       payment actually succeeds (via the Cashfree webhook).
- *     tags: [Orders]
+ *     tags: [Student Orders]
  *     security:
  *       - cookieAuth: []
  *     requestBody:
@@ -224,8 +220,9 @@ const orderRouter = Router();
  *                 example: 64f1a2b3c4d5e6f7a8b9c0d3
  *               paymentMethod:
  *                 type: string
- *                 enum: [cash, online]
- *                 example: online
+ *                 enum: [cash, upi, card, wallet, online]
+ *                 description: Use `online` as alias for UPI checkout
+ *                 example: upi
  *               orderType:
  *                 type: string
  *                 enum: [pickup, delivery]
@@ -296,13 +293,71 @@ orderRouter.post(
 
 /**
  * @swagger
+ * /orders/from-cart:
+ *   post:
+ *     summary: Checkout cart and place order
+ *     description: Reads the student's cart, creates an order, and clears the cart.
+ *     tags: [Student Orders]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [paymentMethod]
+ *             properties:
+ *               paymentMethod:
+ *                 type: string
+ *                 enum: [cash, upi, card, wallet, online]
+ *               orderType:
+ *                 type: string
+ *                 enum: [pickup, delivery]
+ *               notes:
+ *                 type: string
+ *               deliveryAddress:
+ *                 $ref: '#/components/schemas/DeliveryAddress'
+ *     responses:
+ *       201:
+ *         description: Order created from cart
+ */
+orderRouter.post(
+  "/from-cart",
+  authenticate,
+  authorize("student"),
+  validate(createOrderFromCartSchema),
+  createOrderFromCartController,
+);
+
+/**
+ * @swagger
  * /orders/my-orders:
  *   get:
  *     summary: Get logged-in student's orders
- *     description: Returns all orders placed by the currently authenticated student, most recent first.
- *     tags: [Orders]
+ *     description: |
+ *       - Active Orders tab: `?active=true`
+ *       - Deliveries tab: `?active=true&orderType=delivery`
+ *       - Order history: `?history=true`
+ *     tags: [Student Orders]
  *     security:
  *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: active
+ *         schema: { type: boolean }
+ *       - in: query
+ *         name: history
+ *         schema: { type: boolean }
+ *       - in: query
+ *         name: orderType
+ *         schema: { type: string, enum: [pickup, delivery] }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
  *     responses:
  *       200:
  *         description: Orders fetched successfully
@@ -325,6 +380,7 @@ orderRouter.get(
   "/my-orders",
   authenticate,
   authorize("student"),
+  validate(getMyOrdersSchema),
   getMyOrdersController,
 );
 
@@ -337,7 +393,7 @@ orderRouter.get(
  *       Fetches a single order by its order number. Scoped to the
  *       authenticated student — an order number belonging to a different
  *       student returns 404, not the order.
- *     tags: [Orders]
+ *     tags: [Student Orders]
  *     security:
  *       - cookieAuth: []
  *     parameters:
@@ -383,7 +439,7 @@ orderRouter.get(
  *       syncs it if the payment has succeeded. Useful as a fallback if the
  *       webhook is delayed. Scoped to the authenticated student — an order
  *       number belonging to a different student returns 404.
- *     tags: [Orders]
+ *     tags: [Student Orders]
  *     security:
  *       - cookieAuth: []
  *     parameters:
@@ -427,7 +483,7 @@ orderRouter.get(
  *     description: >
  *       Lets a student rate their own order once it reaches `completed`
  *       status. Each order can only be rated once.
- *     tags: [Orders]
+ *     tags: [Student Orders]
  *     security:
  *       - cookieAuth: []
  *     parameters:
@@ -497,7 +553,7 @@ orderRouter.post(
  *       Cancels the student's own order. Only allowed while the order is in
  *       a cancellable status and within 10 minutes of placement. If the
  *       order was already paid, it's flagged for refund.
- *     tags: [Orders]
+ *     tags: [Student Orders]
  *     security:
  *       - cookieAuth: []
  *     parameters:

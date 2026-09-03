@@ -93,6 +93,10 @@ export const changeProfile = async (
     updateData.university = payload.university.trim();
   }
 
+  if (payload.hostel !== undefined) {
+    updateData.hostel = payload.hostel.trim();
+  }
+
   if (payload.profileImage !== undefined) {
     updateData.profileImage = payload.profileImage;
   }

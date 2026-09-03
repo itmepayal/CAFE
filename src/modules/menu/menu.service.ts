@@ -17,7 +17,7 @@ export const getCafeMenuService = async (cafeId: string) => {
 
   await findCafeRepo(cafeId);
 
-  const menuItems = await getMenuItemsByCafeRepo(cafeId);
+  const menuItems = await getMenuItemsByCafeRepo(cafeId, { availableOnly: true });
 
   logger.info(`Fetched ${menuItems.length} menu items for cafe: ${cafeId}`);
 

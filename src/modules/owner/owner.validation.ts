@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  indianMobileSchema,
+  ifscSchema,
+  DEFAULT_ORDER_REJECT_REASON,
+} from "../../utils/validation/indian-fields";
 
 /**
  * =========================================================
@@ -50,12 +55,10 @@ export const updateCafeSchema = z.object({
     cafeName: z.string().trim().min(3).max(150).optional(),
     ownerName: z.string().trim().min(2).max(100).optional(),
     description: z.string().trim().max(1000).optional(),
-    mobile: z
-      .string()
-      .regex(/^[6-9]\d{9}$/, "Invalid mobile number")
-      .optional(),
+    mobile: indianMobileSchema.optional(),
     email: z.string().email("Invalid email").optional(),
     street: z.string().trim().max(200).optional(),
+    searchLocation: z.string().trim().max(300).optional(),
     area: z.string().trim().max(100).optional(),
     city: z.string().trim().max(100).optional(),
     state: z.string().trim().max(100).optional(),
@@ -87,10 +90,7 @@ export const updateCafeSchema = z.object({
       .regex(/^[0-9]{9,18}$/, "Invalid account number")
       .optional(),
     bankName: z.string().trim().min(2).max(100).optional(),
-    ifscCode: z
-      .string()
-      .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code")
-      .optional(),
+    ifscCode: ifscSchema.optional(),
     upiId: z
       .string()
       .regex(/^[a-zA-Z0-9._-]+@[a-zA-Z]+$/, "Invalid UPI ID")
@@ -106,7 +106,7 @@ export const updateCafeSchema = z.object({
 export const createMenuItemSchema = z.object({
   body: z
     .object({
-      category: z.string().trim().min(2).max(100),
+      category: z.string().trim().min(2).max(100).optional().default("General"),
       name: z.string().trim().min(2).max(100),
       description: z.string().trim().max(500).optional(),
       price: z.coerce.number().min(0),
@@ -247,6 +247,23 @@ export const getMyComplaintsSchema = z.object({
  * OWNER TRANSACTIONS
  * =========================================================
  */
+export const getMyCafeOrdersSchema = z.object({
+  query: z.object({
+    status: z.string().optional(),
+    active: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((val) => val === "true"),
+    paymentStatus: z.string().optional(),
+    deliveryStatus: z.string().optional(),
+    search: z.string().optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    page: z.coerce.number().min(1).default(1),
+    limit: z.coerce.number().min(1).max(100).default(10),
+  }),
+});
+
 export const getOwnerTransactionsSchema = z.object({
   query: z.object({
     from: z.string().optional(),
@@ -254,5 +271,40 @@ export const getOwnerTransactionsSchema = z.object({
     settlementStatus: z.enum(["pending", "settled"]).optional(),
     page: z.coerce.number().min(1).default(1),
     limit: z.coerce.number().min(1).max(100).default(20),
+  }),
+});
+
+export const orderIdParamsSchema = z.object({
+  params: z.object({
+    orderId: objectIdSchema,
+  }),
+});
+
+export const acceptOrderSchema = z.object({
+  params: z.object({ orderId: objectIdSchema }),
+  body: z
+    .object({
+      estimatedReadyTime: z.string().datetime().optional(),
+    })
+    .optional(),
+});
+
+export const rejectOrderSchema = z.object({
+  params: z.object({ orderId: objectIdSchema }),
+  body: z
+    .object({
+      reason: z.string().trim().min(3).max(500).optional(),
+    })
+    .optional()
+    .default({})
+    .transform((body) => ({
+      reason: body.reason?.trim() || DEFAULT_ORDER_REJECT_REASON,
+    })),
+});
+
+export const completePickupOrderSchema = z.object({
+  params: z.object({ orderId: objectIdSchema }),
+  body: z.object({
+    pickupCode: z.string().trim().min(4).max(20),
   }),
 });

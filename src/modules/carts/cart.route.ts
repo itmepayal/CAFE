@@ -21,8 +21,8 @@ const cartRouter = Router();
 /**
  * @swagger
  * tags:
- *   name: Cart
- *   description: Shopping Cart APIs
+ *   name: Student Cart
+ *   description: Figma — Your Cart screen (add items, View Cart bar)
  */
 
 /**
@@ -31,7 +31,7 @@ const cartRouter = Router();
  *   post:
  *     summary: Add item to cart
  *     description: Add a menu item to the authenticated user's cart.
- *     tags: [Cart]
+ *     tags: [Student Cart]
  *     security:
  *       - cookieAuth: []
  *     requestBody:
@@ -67,7 +67,7 @@ cartRouter.post("/", authenticate, validate(addToCartSchema), addToCartControlle
  *   get:
  *     summary: Get cart
  *     description: Retrieve the authenticated user's cart.
- *     tags: [Cart]
+ *     tags: [Student Cart]
  *     security:
  *       - cookieAuth: []
  *     responses:
@@ -84,7 +84,7 @@ cartRouter.get("/", authenticate, getCartController);
  *   patch:
  *     summary: Update cart item quantity
  *     description: Update quantity of a cart item.
- *     tags: [Cart]
+ *     tags: [Student Cart]
  *     security:
  *       - cookieAuth: []
  *     parameters:
@@ -125,7 +125,7 @@ cartRouter.patch(
  *   delete:
  *     summary: Remove item from cart
  *     description: Remove a specific item from the cart.
- *     tags: [Cart]
+ *     tags: [Student Cart]
  *     security:
  *       - cookieAuth: []
  *     parameters:
@@ -154,7 +154,7 @@ cartRouter.delete(
  *   delete:
  *     summary: Clear cart
  *     description: Remove all items from the authenticated user's cart.
- *     tags: [Cart]
+ *     tags: [Student Cart]
  *     security:
  *       - cookieAuth: []
  *     responses:

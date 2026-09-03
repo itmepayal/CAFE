@@ -11,6 +11,7 @@ export interface ICafe extends Document {
   email: string;
 
   address: {
+    searchLocation?: string;
     street?: string;
     area?: string;
     city?: string;
@@ -28,6 +29,8 @@ export interface ICafe extends Document {
   menuImage: string;
   gallery: string[];
   layoutPhotos: string[];
+  interiorPhotos: string[];
+  exteriorPhotos: string[];
 
   documents: {
     aadharNumber: string;
@@ -129,6 +132,7 @@ const cafeSchema = new Schema<ICafe>(
     },
 
     address: {
+      searchLocation: String,
       street: String,
       area: String,
       city: String,
@@ -164,10 +168,13 @@ const cafeSchema = new Schema<ICafe>(
       },
     ],
 
+    interiorPhotos: [{ type: String }],
+    exteriorPhotos: [{ type: String }],
+
     documents: {
       aadharNumber: {
         type: String,
-        required: true,
+        default: "",
         trim: true,
       },
 
@@ -178,7 +185,7 @@ const cafeSchema = new Schema<ICafe>(
 
       panNumber: {
         type: String,
-        required: true,
+        default: "",
         trim: true,
         uppercase: true,
       },
@@ -190,7 +197,7 @@ const cafeSchema = new Schema<ICafe>(
 
       fssaiNumber: {
         type: String,
-        required: true,
+        default: "",
         trim: true,
       },
 
@@ -225,7 +232,7 @@ const cafeSchema = new Schema<ICafe>(
 
       upiId: {
         type: String,
-        required: true,
+        default: "",
         lowercase: true,
       },
 

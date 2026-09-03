@@ -23,8 +23,8 @@ const menuRouter = Router();
  * @swagger
  * /menus/{cafeId}:
  *   get:
- *     summary: Get all menu items of a cafe
- *     tags: [Menu]
+ *     summary: Get cafe menu (available items only)
+ *     tags: [Student Menu]
  *     security:
  *       - cookieAuth: []
  *     parameters:
@@ -49,7 +49,7 @@ menuRouter.get(
  * /menus/item/{itemId}:
  *   get:
  *     summary: Get menu item details
- *     tags: [Menu]
+ *     tags: [Student Menu]
  *     security:
  *       - cookieAuth: []
  *     parameters:

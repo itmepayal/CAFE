@@ -11,6 +11,7 @@ export interface ICafeRegistrationDraft extends Document {
     email?: string;
   };
   step2: {
+    searchLocation?: string;
     street?: string;
     area?: string;
     city?: string;
@@ -21,33 +22,19 @@ export interface ICafeRegistrationDraft extends Document {
     longitude?: number;
   };
   step3: {
+    gstId?: string;
     accountHolderName?: string;
     accountNumber?: string;
-    ifscCode?: string;
-    upiId?: string;
     bankName?: string;
-    gstId?: string;
+    ifscCode?: string;
   };
   step4: {
-    cafeImage?: string;
-    menuImage?: string;
-    gallery?: string[];
+    ownerPhoto?: string;
     layoutPhotos?: string[];
-    aadharNumber?: string;
-    panNumber?: string;
-    fssaiNumber?: string;
-    aadharPhoto?: string;
-    panPhoto?: string;
-    fssaiCertificate?: string;
-    bankPassbookPhoto?: string;
   };
   step5: {
-    registrationFeedback?: string;
-    socialMedia?: {
-      instagram?: string;
-      facebook?: string;
-      website?: string;
-    };
+    shopEstablishmentCertificate?: string;
+    bankPassbookPhoto?: string;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -62,12 +49,7 @@ const cafeRegistrationDraftSchema = new Schema<ICafeRegistrationDraft>(
       unique: true,
       index: true,
     },
-    currentStep: {
-      type: Number,
-      default: 1,
-      min: 1,
-      max: 5,
-    },
+    currentStep: { type: Number, default: 1, min: 1, max: 5 },
     step1: {
       cafeName: String,
       ownerName: String,
@@ -76,6 +58,7 @@ const cafeRegistrationDraftSchema = new Schema<ICafeRegistrationDraft>(
       email: String,
     },
     step2: {
+      searchLocation: String,
       street: String,
       area: String,
       city: String,
@@ -86,39 +69,22 @@ const cafeRegistrationDraftSchema = new Schema<ICafeRegistrationDraft>(
       longitude: Number,
     },
     step3: {
+      gstId: String,
       accountHolderName: String,
       accountNumber: String,
-      ifscCode: String,
-      upiId: String,
       bankName: String,
-      gstId: String,
+      ifscCode: String,
     },
     step4: {
-      cafeImage: String,
-      menuImage: String,
-      gallery: [String],
+      ownerPhoto: String,
       layoutPhotos: [String],
-      aadharNumber: String,
-      panNumber: String,
-      fssaiNumber: String,
-      aadharPhoto: String,
-      panPhoto: String,
-      fssaiCertificate: String,
-      bankPassbookPhoto: String,
     },
     step5: {
-      registrationFeedback: String,
-      socialMedia: {
-        instagram: String,
-        facebook: String,
-        website: String,
-      },
+      shopEstablishmentCertificate: String,
+      bankPassbookPhoto: String,
     },
   },
-  {
-    timestamps: true,
-    versionKey: false,
-  },
+  { timestamps: true, versionKey: false },
 );
 
 const CafeRegistrationDraft: Model<ICafeRegistrationDraft> =

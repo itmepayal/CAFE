@@ -28,6 +28,7 @@ export const sendAuthResponse = ({
   res.status(statusCode).json({
     success: true,
     message,
+    ...(meta ? { meta } : {}),
     data: {
       user: tokens.user,
       accessToken: tokens.accessToken,

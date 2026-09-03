@@ -28,6 +28,7 @@ import {
   PAYMENT_METHODS,
   ORDER_TYPES,
   OrderStatus,
+  DEFAULT_DELIVERY_CHARGE,
 } from "./order.constant";
 import {
   CancelOrderInput,
@@ -36,13 +37,24 @@ import {
 } from "./order.type";
 import { findCafeById } from "../cafes/cafe.repository";
 import { findMenuItemByIdRepo } from "../menu/menu.repository";
+import { findCartByUserId } from "../carts/cart.repository";
+import { clearCartService } from "../carts/cart.service";
 import {
   createCashfreeOrder,
   verifyCashfreeOrder,
 } from "../../config/cashfree.config";
 import { processOrderRefund } from "../payment/refund.service";
 
-const DEFAULT_DELIVERY_CHARGE = 29;
+const clearCartIfMatchesCafe = async (studentId: string, cafeId: string) => {
+  try {
+    const cart = await findCartByUserId(studentId);
+    if (cart && cart.cafeId.toString() === cafeId) {
+      await clearCartService(studentId);
+    }
+  } catch (error) {
+    logger.warn("Failed to clear cart after order", { studentId, cafeId, error });
+  }
+};
 
 /**
  * =========================================================
@@ -312,7 +324,38 @@ export const createOrderService = async (
     }
   }
 
+  await clearCartIfMatchesCafe(studentId, cafeId);
+
   return { order, paymentSessionId };
+};
+
+/**
+ * =========================================================
+ * CREATE ORDER FROM CART (checkout)
+ * =========================================================
+ */
+export const createOrderFromCartService = async (
+  studentId: string,
+  input: Omit<CreateOrderInput, "cafeId" | "items" | "studentId">,
+): Promise<{ order: IOrder; paymentSessionId?: string }> => {
+  const cart = await findCartByUserId(studentId);
+
+  if (!cart || cart.items.length === 0) {
+    throw new BadRequestError("Your cart is empty.");
+  }
+
+  const items = cart.items.map((item) => ({
+    menuItemId: item.menuItemId.toString(),
+    quantity: item.quantity,
+    specialInstructions: item.specialInstructions ?? "",
+  }));
+
+  return createOrderService({
+    studentId,
+    cafeId: cart.cafeId.toString(),
+    items,
+    ...input,
+  });
 };
 
 /**
@@ -322,8 +365,15 @@ export const createOrderService = async (
  */
 export const getStudentOrdersService = async (
   studentId: string,
-): Promise<IOrder[]> => {
-  return await findOrdersByStudentRepo(studentId);
+  filters: {
+    active?: boolean;
+    history?: boolean;
+    orderType?: "pickup" | "delivery";
+    page?: number;
+    limit?: number;
+  } = {},
+) => {
+  return findOrdersByStudentRepo(studentId, filters);
 };
 
 /**

@@ -395,6 +395,7 @@ export const getMyCafeOrdersController = async (
 
     const options = {
       status: req.query.status as string | undefined,
+      active: req.query.active as boolean | undefined,
       paymentStatus: req.query.paymentStatus as string | undefined,
       deliveryStatus: req.query.deliveryStatus as string | undefined,
       search: req.query.search as string | undefined,
