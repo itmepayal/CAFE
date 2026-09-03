@@ -35,7 +35,6 @@ const adminInviteSchema = new Schema<IAdminInvite>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
 
     usedAt: {

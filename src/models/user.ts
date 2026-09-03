@@ -79,7 +79,6 @@ const userSchema = new Schema<IUser>(
     providerId: {
       type: String,
       required: true,
-      index: true,
     },
 
     passwordHash: {

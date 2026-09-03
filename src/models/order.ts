@@ -221,7 +221,6 @@ const orderSchema = new Schema<IOrder>(
       type: String,
       enum: PAYMENT_STATUSES,
       default: "pending",
-      index: true,
     },
 
     paymentMethod: {
@@ -239,7 +238,6 @@ const orderSchema = new Schema<IOrder>(
       type: String,
       enum: ORDER_STATUSES,
       default: "pending",
-      index: true,
     },
 
     orderType: {
@@ -247,7 +245,6 @@ const orderSchema = new Schema<IOrder>(
       enum: ORDER_TYPES,
       required: true,
       default: "pickup",
-      index: true,
     },
 
     pickupCode: {
