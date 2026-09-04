@@ -15,6 +15,7 @@ export const ADMIN_SOCKET_EVENTS = {
   ORDER_COMPLETED: "admin:order:completed",
   ORDER_CANCELLED: "admin:order:cancelled",
   ORDER_AUTO_CANCELLED: "admin:order:auto_cancelled",
+  ORDER_LOCATION_STREAM: "admin:orderLocationStream",
   CONNECTED: "admin:connected",
 } as const;
 

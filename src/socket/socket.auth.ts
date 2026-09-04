@@ -8,6 +8,10 @@ import logger from "../config/logger.config";
 import { SOCKET_ROOMS } from "./constants";
 import { deliverAdminInitialSnapshot } from "./admin/admin.notifier";
 import { deliverOwnerInitialSnapshot } from "./owner/owner.notifier";
+import {
+  handleDeliveryLocationUpdate,
+  DeliveryLocationPayload,
+} from "./delivery.socket";
 
 interface SocketUser {
   id: string;
@@ -168,7 +172,14 @@ export const registerSocketRoomHandlers = (socket: Socket): void => {
           isCafeOwner = cafe?._id.toString() === orderCafeId;
         }
 
-        if (!isStudent && !isCafeOwner && !isSuperAdmin) {
+        const deliveryPersonId = order.deliveryPersonId
+          ? order.deliveryPersonId._id
+            ? order.deliveryPersonId._id.toString()
+            : order.deliveryPersonId.toString()
+          : null;
+        const isDeliveryPartner = deliveryPersonId === user.id;
+
+        if (!isStudent && !isCafeOwner && !isSuperAdmin && !isDeliveryPartner) {
           logger.warn("Unauthorized order room join attempt", {
             socketId: socket.id,
             userId: user.id,
@@ -186,6 +197,13 @@ export const registerSocketRoomHandlers = (socket: Socket): void => {
           error,
         });
       }
+    },
+  );
+
+  socket.on(
+    "delivery:locationUpdate",
+    async (payload: DeliveryLocationPayload): Promise<void> => {
+      await handleDeliveryLocationUpdate(socket, payload);
     },
   );
 

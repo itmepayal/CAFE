@@ -8,6 +8,7 @@ import ownerRouter from "../../modules/owner/owner.route";
 import cartRouter from "../../modules/carts/cart.route";
 import orderRouter from "../../modules/order/order.route";
 import hostelRouter from "../../modules/hostel/hostel.route";
+import deliveryRouter from "../../modules/delivery/delivery.route";
 
 const v1Router = express.Router();
 
@@ -20,5 +21,6 @@ v1Router.use("/cafes", cafeRouter);
 v1Router.use("/carts", cartRouter);
 v1Router.use("/orders", orderRouter);
 v1Router.use("/complaints", complaintRouter);
+v1Router.use("/delivery", deliveryRouter);
 
 export default v1Router;
