@@ -4,7 +4,8 @@ Production-ready API for the Cafe Mart university café ordering platform.
 
 **Base URL:** `/api/v1`  
 **Health:** `GET /health`  
-**Swagger (dev only):** `GET /docs`
+**Swagger UI:** `GET /docs`  
+**OpenAPI JSON:** `GET /docs-json`
 
 ---
 

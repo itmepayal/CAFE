@@ -20,6 +20,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
+# Keep TypeScript sources for swagger-jsdoc (JSDoc on docs-only files is stripped by tsc)
+COPY --from=builder /app/src ./src
 
 RUN mkdir -p uploads logs
 

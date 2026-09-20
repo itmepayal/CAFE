@@ -1,5 +1,5 @@
 /**
- * Socket.IO event names for the Super Admin portal (Figma screens).
+ * Socket.IO event names for the Super Admin portal .
  */
 export const ADMIN_SOCKET_EVENTS = {
   DASHBOARD_UPDATED: "admin:dashboard:updated",

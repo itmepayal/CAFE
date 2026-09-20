@@ -1,8 +1,38 @@
+import fs from "fs";
+import path from "path";
 import swaggerJsdoc from "swagger-jsdoc";
 import { serverConfig } from "../config";
 import { adminSwaggerSchemas } from "./admin.swagger.schemas";
 import { ownerSwaggerSchemas } from "./owner.swagger.schemas";
 import { studentSwaggerSchemas } from "./student.swagger.schemas";
+
+/**
+ * Prefer TypeScript sources when present (dev / Render native / Docker with src).
+ * Docs-only files (owner/student/socket.docs) lose most @swagger JSDoc on `tsc`
+ * emit, so scanning compiled JS alone yields an incomplete OpenAPI document.
+ * Fall back to dist route files when src is absent.
+ */
+const srcModulesDir = path.join(process.cwd(), "src", "modules");
+const useSrcDocs = fs.existsSync(srcModulesDir);
+
+const swaggerApiGlobs = useSrcDocs
+  ? [
+      "./src/modules/**/*.route.ts",
+      "./src/modules/**/*.routes.ts",
+      "./src/socket/socket.docs.ts",
+      "./src/config/owner.swagger.docs.ts",
+      "./src/config/student.swagger.docs.ts",
+    ]
+  : [
+      "./dist/modules/**/*.route.js",
+      "./dist/modules/**/*.routes.js",
+      "./dist/socket/socket.docs.js",
+      "./dist/config/owner.swagger.docs.js",
+      "./dist/config/student.swagger.docs.js",
+    ];
+
+/** OpenAPI "Try it out" base — paths are like /auth/google under /api/v1. */
+const openApiServerUrl = serverConfig.API_BASE_URL.replace(/\/$/, "");
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -17,9 +47,9 @@ const options: swaggerJsdoc.Options = {
 
     servers: [
       {
-        url: serverConfig.API_BASE_URL,
+        url: openApiServerUrl,
         description:
-          process.env.NODE_ENV === "production"
+          serverConfig.NODE_ENV === "production"
             ? "Production Server"
             : "Development Server",
       },
@@ -227,13 +257,7 @@ const options: swaggerJsdoc.Options = {
     security: [{ bearerAuth: [] }, { cookieAuth: [] }],
   },
 
-  apis: [
-    "./src/modules/**/*.route.ts",
-    "./src/modules/**/*.routes.ts",
-    "./src/socket/socket.docs.ts",
-    "./src/config/owner.swagger.docs.ts",
-    "./src/config/student.swagger.docs.ts",
-  ],
+  apis: swaggerApiGlobs,
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

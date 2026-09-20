@@ -3,7 +3,6 @@ import cors, { CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import mongoose from "mongoose";
-import { serverConfig } from "./config";
 import logger from "./config/logger.config";
 import { swaggerSpec } from "./config/swagger.config";
 import v1Router from "./routers/v1/index.router";
@@ -82,17 +81,23 @@ export const createApp = (): express.Application => {
 
   app.use(express.json());
 
-  if (serverConfig.NODE_ENV !== "production") {
-    app.use(
-      "/docs",
-      swaggerUi.serve,
-      swaggerUi.setup(swaggerSpec, {
-        swaggerOptions: {
-          withCredentials: true,
-        },
-      }),
-    );
-  }
+  // OpenAPI JSON — public, no auth (Swagger UI + external clients)
+  app.get("/docs-json", (_req, res) => {
+    res.json(swaggerSpec);
+  });
+
+  app.use(
+    "/docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      swaggerOptions: {
+        withCredentials: true,
+        persistAuthorization: true,
+        url: "/docs-json",
+      },
+      customSiteTitle: "Gravly API Docs",
+    }),
+  );
 
   app.use("/api/v1", v1Router);
 
