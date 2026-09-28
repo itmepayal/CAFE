@@ -19,6 +19,7 @@ import {
   rateOrderSchema,
   orderNumberParamSchema,
 } from "./order.validation";
+import { paymentSensitiveRateLimiter } from "../../middlewares/rate-limit.middleware";
 
 const orderRouter = Router();
 
@@ -287,6 +288,7 @@ orderRouter.post(
   "/",
   authenticate,
   authorize("student"),
+  paymentSensitiveRateLimiter,
   validate(createOrderSchema),
   createOrderController,
 );
@@ -326,6 +328,7 @@ orderRouter.post(
   "/from-cart",
   authenticate,
   authorize("student"),
+  paymentSensitiveRateLimiter,
   validate(createOrderFromCartSchema),
   createOrderFromCartController,
 );

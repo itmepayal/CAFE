@@ -14,6 +14,7 @@ import {
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 import { collectFigmaRegistrationMediaErrors } from "./cafe.validation";
 import { BadRequestError } from "../../utils/errors/app.error";
+import { ApiResponse } from "../../utils/response/app.response";
 
 type UploadedFiles = Record<string, Express.Multer.File[] | undefined>;
 
@@ -116,11 +117,7 @@ export const registerCafeController = async (
     };
 
     const cafe = await registerCafeService(userId, payload);
-    res.status(201).json({
-      success: true,
-      message: "Cafe registered successfully",
-      data: cafe,
-    });
+    ApiResponse.success(res, "Cafe registered successfully", cafe, 201);
   } catch (error) {
     next(error);
   }
@@ -138,10 +135,7 @@ export const getRegistrationDraftController = async (
     const userId = req.user?.id as string;
     const draft = await getRegistrationDraftService(userId);
 
-    res.json({
-      success: true,
-      data: draft,
-    });
+    ApiResponse.success(res, "Registration draft", draft);
   } catch (error) {
     next(error);
   }
@@ -206,11 +200,7 @@ export const saveRegistrationDraftStepController = async (
 
     const draft = await saveRegistrationDraftStepService(userId, step, stepData);
 
-    res.json({
-      success: true,
-      message: `Step ${step} saved successfully`,
-      data: draft,
-    });
+    ApiResponse.success(res, `Step ${step} saved successfully`, draft);
   } catch (error) {
     next(error);
   }
@@ -228,11 +218,7 @@ export const submitRegistrationDraftController = async (
     const userId = req.user?.id as string;
     const cafe = await submitRegistrationDraftService(userId);
 
-    res.status(201).json({
-      success: true,
-      message: "Cafe registration submitted successfully",
-      data: cafe,
-    });
+    ApiResponse.success(res, "Cafe registration submitted successfully", cafe, 201);
   } catch (error) {
     next(error);
   }
@@ -250,10 +236,7 @@ export const clearRegistrationDraftController = async (
     const userId = req.user?.id as string;
     await clearRegistrationDraftService(userId);
 
-    res.json({
-      success: true,
-      message: "Registration draft cleared",
-    });
+    ApiResponse.success(res, "Registration draft cleared");
   } catch (error) {
     next(error);
   }
@@ -310,10 +293,7 @@ export const getMyCafeController = async (
 
     const cafe = await getMyCafeService(userId);
 
-    res.json({
-      success: true,
-      data: cafe,
-    });
+    ApiResponse.success(res, "My cafe", cafe);
   } catch (error) {
     next(error);
   }
@@ -330,10 +310,7 @@ export const getCafeByIdController = async (
   try {
     const cafe = await getCafeByIdService(req.params.id);
 
-    res.json({
-      success: true,
-      data: cafe,
-    });
+    ApiResponse.success(res, "Cafe fetched", cafe);
   } catch (error) {
     next(error);
   }

@@ -172,6 +172,7 @@ const userSchema = new Schema<IUser>(
 
 userSchema.index({ createdAt: -1 });
 userSchema.index({ providerId: 1 }, { unique: true });
+userSchema.index({ role: 1, isBlocked: 1, createdAt: -1 });
 
 userSchema.virtual("isCafeOwner").get(function (this: IUser) {
   return this.role === "cafe_owner";

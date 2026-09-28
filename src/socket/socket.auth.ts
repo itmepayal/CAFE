@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { serverConfig } from "../config";
 import { findCafeByUserId } from "../modules/cafes/cafe.repository";
 import { findOrderByIdRepo } from "../modules/order/order.repository";
+import { findUserAuthStatusById } from "../modules/auth/auth.repository";
 import logger from "../config/logger.config";
 import { SOCKET_ROOMS } from "./constants";
 import { deliverAdminInitialSnapshot } from "./admin/admin.notifier";
@@ -30,31 +31,47 @@ export const authenticateSocket = (
   socket: Socket,
   next: (err?: Error) => void,
 ): void => {
-  try {
-    const cookies = cookie.parse(socket.handshake.headers.cookie ?? "");
-    const token =
-      (socket.handshake.auth?.token as string | undefined) ??
-      cookies.accessToken;
+  void (async () => {
+    try {
+      const cookies = cookie.parse(socket.handshake.headers.cookie ?? "");
+      const token =
+        (socket.handshake.auth?.token as string | undefined) ??
+        cookies.accessToken;
 
-    if (!token) {
-      return next(new Error("Authentication required"));
+      if (!token) {
+        return next(new Error("Authentication required"));
+      }
+
+      const decoded = jwt.verify(
+        token,
+        serverConfig.JWT_ACCESS_SECRET,
+      ) as JwtPayload;
+
+      const user = await findUserAuthStatusById(decoded.sub);
+
+      if (!user) {
+        return next(new Error("Invalid or expired token"));
+      }
+
+      if (!user.isActive) {
+        return next(new Error("Account is deactivated"));
+      }
+
+      if (user.isBlocked) {
+        return next(new Error("Account is blocked"));
+      }
+
+      socket.data.user = {
+        id: user._id.toString(),
+        role: user.role,
+        email: user.email,
+      } satisfies SocketUser;
+
+      next();
+    } catch {
+      next(new Error("Invalid or expired token"));
     }
-
-    const decoded = jwt.verify(
-      token,
-      serverConfig.JWT_ACCESS_SECRET,
-    ) as JwtPayload;
-
-    socket.data.user = {
-      id: decoded.sub,
-      role: decoded.role,
-      email: decoded.email,
-    } satisfies SocketUser;
-
-    next();
-  } catch {
-    next(new Error("Invalid or expired token"));
-  }
+  })();
 };
 
 export const autoJoinAdminRoom = (socket: Socket): void => {

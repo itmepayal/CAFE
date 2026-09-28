@@ -10,12 +10,19 @@ import {
   adminLoginController,
   adminRegisterController,
   cafeOwnerLoginController,
+  forgotPasswordController,
+  resetPasswordController,
+  logoutAllController,
+  deleteAccountController,
 } from "./auth.controller";
 
 import { authenticate } from "../../middlewares/auth.middleware";
 import { upload } from "../../config/multer.config";
 import { validate } from "../../middlewares/validate.middleware";
-import { authRateLimiter } from "../../middlewares/rate-limit.middleware";
+import {
+  authRateLimiter,
+  passwordResetRateLimiter,
+} from "../../middlewares/rate-limit.middleware";
 import {
   updateProfileSchema,
   googleLoginSchema,
@@ -23,6 +30,8 @@ import {
   adminEmailLoginSchema,
   adminEmailRegisterSchema,
   cafeOwnerLoginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from "./auth.validation";
 
 export const authRouter = Router();
@@ -173,6 +182,109 @@ authRouter.post("/logout", authenticate, logoutController);
 
 /**
  * @swagger
+ * /auth/logout-all:
+ *   post:
+ *     summary: Revoke all refresh sessions for the current user
+ *     tags: [Auth]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: All sessions revoked
+ *       401:
+ *         description: Unauthorized
+ */
+authRouter.post("/logout-all", authenticate, logoutAllController);
+
+/**
+ * @swagger
+ * /auth/forgot-password:
+ *   post:
+ *     summary: Request a password reset
+ *     description: Always returns a generic success message (anti-enumeration).
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Generic acknowledgement
+ *       429:
+ *         description: Rate limited
+ */
+authRouter.post(
+  "/forgot-password",
+  passwordResetRateLimiter,
+  validate(forgotPasswordSchema),
+  forgotPasswordController,
+);
+
+/**
+ * @swagger
+ * /auth/reset-password:
+ *   post:
+ *     summary: Reset password with a one-time token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token, password]
+ *             properties:
+ *               token:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *     responses:
+ *       200:
+ *         description: Password updated; sessions revoked
+ *       400:
+ *         description: Invalid or expired token
+ *       429:
+ *         description: Rate limited
+ */
+authRouter.post(
+  "/reset-password",
+  passwordResetRateLimiter,
+  validate(resetPasswordSchema),
+  resetPasswordController,
+);
+
+/**
+ * @swagger
+ * /auth/account:
+ *   delete:
+ *     summary: Soft-delete and anonymize the authenticated account
+ *     description: >
+ *       Anonymizes PII, deactivates the user, and revokes sessions.
+ *       Orders and payments are retained for financial integrity.
+ *     tags: [Auth]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Account anonymized
+ *       400:
+ *         description: Cannot delete (e.g. cafe owner with cafe)
+ *       401:
+ *         description: Unauthorized
+ */
+authRouter.delete("/account", authenticate, deleteAccountController);
+
+/**
+ * @swagger
  * /auth/refresh-token:
  *   post:
  *     summary: Refresh access and refresh tokens
@@ -194,7 +306,6 @@ authRouter.post("/logout", authenticate, logoutController);
  *         description: Invalid or expired refresh token
  */
 authRouter.post("/refresh-token", refreshTokenController);
-
 /**
  * @swagger
  * /auth/admin/register:

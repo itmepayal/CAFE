@@ -150,6 +150,8 @@ const complaintSchema = new Schema<IComplaint>(
 );
 
 complaintSchema.index({ userId: 1, createdAt: -1 });
+complaintSchema.index({ cafeId: 1, status: 1, createdAt: -1 });
+complaintSchema.index({ status: 1, priority: 1, createdAt: -1 });
 
 complaintSchema.virtual("isResolved").get(function (this: IComplaint) {
   return ["resolved", "closed"].includes(this.status);

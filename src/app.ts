@@ -11,8 +11,16 @@ import {
   appErrorHandler,
   genericErrorHandler,
 } from "./middlewares/error.middleware";
-import { applySecurityMiddleware } from "./middlewares/security.middleware";
+import {
+  applySecurityMiddleware,
+  swaggerCspMiddleware,
+} from "./middlewares/security.middleware";
 import { generalRateLimiter } from "./middlewares/rate-limit.middleware";
+import { swaggerAccessGuard } from "./middlewares/swagger-access.middleware";
+import {
+  accessLogMiddleware,
+  requestIdMiddleware,
+} from "./middlewares/request.middleware";
 
 const allowedOrigins = [
   "http://localhost:3000",
@@ -27,7 +35,6 @@ const allowedOrigins = [
 
 const corsOptions: CorsOptions = {
   origin(origin, callback) {
-    // No Origin: mobile apps, webhooks, health checks, server-to-server (not browser CORS)
     if (!origin) {
       return callback(null, true);
     }
@@ -41,13 +48,21 @@ const corsOptions: CorsOptions = {
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "X-Request-ID",
+    "X-Swagger-Key",
+  ],
+  exposedHeaders: ["X-Request-ID"],
 };
 
 export const createApp = (): express.Application => {
   const app = express();
 
   applySecurityMiddleware(app);
+  app.use(requestIdMiddleware);
 
   app.get("/health", (_req, res) => {
     const dbConnected = mongoose.connection.readyState === 1;
@@ -61,9 +76,22 @@ export const createApp = (): express.Application => {
     });
   });
 
+  app.get("/ready", (_req, res) => {
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      res.status(503).json({ success: false, ready: false });
+      return;
+    }
+    res.status(200).json({ success: true, ready: true });
+  });
+
+  app.get("/live", (_req, res) => {
+    res.status(200).json({ success: true, live: true });
+  });
+
   app.use(
     "/api/v1/orders/webhook",
-    express.raw({ type: "application/json" }),
+    express.raw({ type: "application/json", limit: "1mb" }),
     cashfreeWebhookRouter,
   );
 
@@ -73,21 +101,18 @@ export const createApp = (): express.Application => {
   app.options(/.*/, cors(corsOptions));
 
   app.use(generalRateLimiter);
+  app.use(accessLogMiddleware);
 
-  app.use((req, _res, next) => {
-    logger.info(`GRAVIL BACKEND REQUEST => ${req.method} ${req.originalUrl}`);
-    next();
-  });
+  app.use(express.json({ limit: "1mb" }));
 
-  app.use(express.json());
-
-  // OpenAPI JSON — public, no auth (Swagger UI + external clients)
-  app.get("/docs-json", (_req, res) => {
+  app.get("/docs-json", swaggerAccessGuard, (_req, res) => {
     res.json(swaggerSpec);
   });
 
   app.use(
     "/docs",
+    swaggerAccessGuard,
+    swaggerCspMiddleware,
     swaggerUi.serve,
     swaggerUi.setup(swaggerSpec, {
       swaggerOptions: {

@@ -335,6 +335,10 @@ orderSchema.index({ cafeId: 1, createdAt: -1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ paymentStatus: 1 });
 orderSchema.index({ orderType: 1 });
+orderSchema.index({ status: 1, createdAt: 1 });
+orderSchema.index({ status: 1, paymentStatus: 1, paymentMethod: 1, createdAt: 1 });
+orderSchema.index({ orderType: 1, deliveryStatus: 1, status: 1, createdAt: -1 });
+orderSchema.index({ deliveryPersonId: 1, createdAt: -1 });
 
 orderSchema.pre("save", function (next) {
   const order = this as IOrder;

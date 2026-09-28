@@ -95,16 +95,12 @@ const paymentSchema = new Schema<IPayment>(
 
     cashfreeOrderId: {
       type: String,
-      default: "",
-      unique: true,
-      sparse: true,
-      index: true,
+      default: undefined,
     },
 
     cashfreePaymentId: {
       type: String,
-      default: "",
-      index: true,
+      default: undefined,
     },
 
     paymentSessionId: {
@@ -173,8 +169,7 @@ const paymentSchema = new Schema<IPayment>(
 
     webhookEventId: {
       type: String,
-      default: "",
-      index: true,
+      default: undefined,
     },
 
     lastWebhookAt: {
@@ -216,7 +211,33 @@ paymentSchema.index({ orderId: 1, status: 1 });
 paymentSchema.index({ userId: 1, createdAt: -1 });
 paymentSchema.index({ status: 1 });
 paymentSchema.index({ provider: 1 });
-paymentSchema.index({ webhookEventId: 1 }, { sparse: true });
+paymentSchema.index(
+  { cashfreeOrderId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      cashfreeOrderId: { $exists: true, $type: "string", $gt: "" },
+    },
+  },
+);
+paymentSchema.index(
+  { cashfreePaymentId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      cashfreePaymentId: { $exists: true, $type: "string", $gt: "" },
+    },
+  },
+);
+paymentSchema.index(
+  { webhookEventId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      webhookEventId: { $exists: true, $type: "string", $gt: "" },
+    },
+  },
+);
 
 const Payment: Model<IPayment> =
   mongoose.models.Payment || mongoose.model<IPayment>("Payment", paymentSchema);

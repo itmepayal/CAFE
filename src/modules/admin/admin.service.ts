@@ -29,14 +29,20 @@ import {
   getAdminSettlementsService,
   settleSettlementService,
 } from "../settlement/settlement.service";
+import { writeAuditLog } from "../../utils/audit/audit-log";
+import { assertPermission, PERMISSIONS } from "../../utils/auth/permissions";
 
 /**
  * =========================================================
  * GET ALL USERS
  * =========================================================
  */
-export const getAllUsersService = async (role?: string) => {
-  return getAllUsersRepo(role);
+export const getAllUsersService = async (
+  role?: string,
+  page: number = 1,
+  limit: number = 50,
+) => {
+  return getAllUsersRepo(role, page, limit);
 };
 
 /**
@@ -47,7 +53,9 @@ export const getAllUsersService = async (role?: string) => {
 export const approveCafeService = async (
   cafeId: string,
   adminId: mongoose.Types.ObjectId,
+  requestId?: string,
 ) => {
+  assertPermission("super_admin", PERMISSIONS.ADMIN_MANAGE_CAFES);
   const cafe = await findCafeByIdRepo(cafeId);
 
   if (cafe.isBlocked) {
@@ -83,6 +91,15 @@ export const approveCafeService = async (
 
   emitAdminCafeUpdated(cafe, "approved");
 
+  await writeAuditLog({
+    actorId: adminId.toString(),
+    actorRole: "super_admin",
+    action: "cafe.approve",
+    targetType: "cafe",
+    targetId: cafeId,
+    requestId,
+  });
+
   return cafe;
 };
 
@@ -91,7 +108,13 @@ export const approveCafeService = async (
  * REJECT CAFE
  * =========================================================
  */
-export const rejectCafeService = async (cafeId: string, adminNote: string) => {
+export const rejectCafeService = async (
+  cafeId: string,
+  adminNote: string,
+  adminId?: string,
+  requestId?: string,
+) => {
+  assertPermission("super_admin", PERMISSIONS.ADMIN_MANAGE_CAFES);
   const cafe = await findCafeByIdRepo(cafeId);
 
   if (cafe.status === "approved") {
@@ -114,6 +137,18 @@ export const rejectCafeService = async (cafeId: string, adminNote: string) => {
 
   emitAdminCafeUpdated(savedCafe, "rejected");
 
+  if (adminId) {
+    await writeAuditLog({
+      actorId: adminId,
+      actorRole: "super_admin",
+      action: "cafe.reject",
+      targetType: "cafe",
+      targetId: cafeId,
+      requestId,
+      metadata: { adminNote },
+    });
+  }
+
   return savedCafe;
 };
 
@@ -122,7 +157,12 @@ export const rejectCafeService = async (cafeId: string, adminNote: string) => {
  * BLOCK / UNBLOCK CAFE
  * =========================================================
  */
-export const toggleCafeBlockService = async (cafeId: string) => {
+export const toggleCafeBlockService = async (
+  cafeId: string,
+  adminId?: string,
+  requestId?: string,
+) => {
+  assertPermission("super_admin", PERMISSIONS.ADMIN_MANAGE_CAFES);
   const cafe = await findCafeByIdRepo(cafeId);
   if (cafe.status !== "approved") {
     throw new BadRequestError(
@@ -138,6 +178,17 @@ export const toggleCafeBlockService = async (cafeId: string) => {
   const savedCafe = await saveCafeRepo(cafe);
 
   emitAdminCafeUpdated(savedCafe, savedCafe.isBlocked ? "blocked" : "unblocked");
+
+  if (adminId) {
+    await writeAuditLog({
+      actorId: adminId,
+      actorRole: "super_admin",
+      action: savedCafe.isBlocked ? "cafe.block" : "cafe.unblock",
+      targetType: "cafe",
+      targetId: cafeId,
+      requestId,
+    });
+  }
 
   return savedCafe;
 };
@@ -193,8 +244,11 @@ export const toggleCafeOpenService = async (cafeId: string) => {
 // =========================================
 // GET PENDING CAFES
 // =========================================
-export const getPendingCafesService = async () => {
-  return await findPendingCafes();
+export const getPendingCafesService = async (
+  page: number = 1,
+  limit: number = 50,
+) => {
+  return await findPendingCafes(page, limit);
 };
 
 // =========================================
@@ -286,23 +340,45 @@ export const forceCancelOrderService = async (
 // =========================================
 // MARK ORDER REFUNDED
 // =========================================
-export const refundOrderService = async (orderId: string) => {
+export const refundOrderService = async (
+  orderId: string,
+  adminId?: string,
+  requestId?: string,
+) => {
+  assertPermission("super_admin", PERMISSIONS.ADMIN_REFUND);
   const order = await findOrderByIdRepo(orderId);
   if (!order) throw new NotFoundError("Order not found");
 
-  if (order.paymentStatus !== "paid") {
+  if (order.paymentStatus === "refunded") {
+    return order;
+  }
+
+  if (order.paymentStatus !== "paid" && order.paymentStatus !== "refund_pending") {
     throw new BadRequestError("Only paid orders can be refunded.");
   }
 
   await processOrderRefund(order, "Admin initiated refund");
 
-  order.paymentStatus = "refunded";
-  const savedOrder = await saveOrderRepo(order);
+  const savedOrder = await findOrderByIdRepo(orderId);
+  if (!savedOrder) {
+    throw new NotFoundError("Order not found");
+  }
 
   notifyAdminPaymentUpdate(
     toAdminPaymentPayload(savedOrder),
     "order_refunded",
   );
+
+  if (adminId) {
+    await writeAuditLog({
+      actorId: adminId,
+      actorRole: "super_admin",
+      action: "order.refund",
+      targetType: "order",
+      targetId: orderId,
+      requestId,
+    });
+  }
 
   return savedOrder;
 };
@@ -377,6 +453,17 @@ export const getSettlementsService = async (
 export const markSettlementAsSettledService = async (
   settlementId: string,
   adminId: string,
+  requestId?: string,
 ) => {
-  return settleSettlementService(settlementId, adminId);
+  assertPermission("super_admin", PERMISSIONS.ADMIN_SETTLE);
+  const result = await settleSettlementService(settlementId, adminId);
+  await writeAuditLog({
+    actorId: adminId,
+    actorRole: "super_admin",
+    action: "settlement.settle",
+    targetType: "settlement",
+    targetId: settlementId,
+    requestId,
+  });
+  return result;
 };

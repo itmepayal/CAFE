@@ -352,6 +352,7 @@ const cafeSchema = new Schema<ICafe>(
 cafeSchema.index({ isOpen: 1 });
 cafeSchema.index({ "address.city": 1 });
 cafeSchema.index({ createdAt: -1 });
+cafeSchema.index({ status: 1, isBlocked: 1, isVisible: 1, isOpen: 1 });
 
 cafeSchema.virtual("isApproved").get(function (this: ICafe) {
   return this.status === "approved";

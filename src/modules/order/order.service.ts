@@ -35,8 +35,13 @@ import {
   CreateOrderInput,
   RateOrderInput,
 } from "./order.type";
-import { findCafeById } from "../cafes/cafe.repository";
-import { findMenuItemByIdRepo } from "../menu/menu.repository";
+import { findCafeById, applyCafeRatingRepo } from "../cafes/cafe.repository";
+import {
+  findMenuItemsByIdsRepo,
+  decrementMenuStockRepo,
+  restoreMenuStockRepo,
+  applyMenuItemRatingRepo,
+} from "../menu/menu.repository";
 import { findCartByUserId } from "../carts/cart.repository";
 import { clearCartService } from "../carts/cart.service";
 import {
@@ -44,6 +49,11 @@ import {
   verifyCashfreeOrder,
 } from "../../config/cashfree.config";
 import { processOrderRefund } from "../payment/refund.service";
+import {
+  syncPaymentLedgerAfterCashfreeCreate,
+  handlePaymentSuccessWebhook,
+} from "../payment/webhook.service";
+import { CashfreeWebhookPayload } from "../payment/payment.type";
 
 const clearCartIfMatchesCafe = async (studentId: string, cafeId: string) => {
   try {
@@ -143,15 +153,14 @@ export const createOrderService = async (
     throw new BadRequestError("This cafe does not offer delivery.");
   }
 
-  const menuItems = await Promise.all(
-    items.map((item) => findMenuItemByIdRepo(item.menuItemId)),
-  );
+  const uniqueIds = [...new Set(items.map((item) => item.menuItemId))];
+  const menuDocs = await findMenuItemsByIdsRepo(uniqueIds);
+  const menuById = new Map(menuDocs.map((doc) => [doc._id.toString(), doc]));
 
   const enrichedItems: IOrderItem[] = [];
 
-  for (let i = 0; i < items.length; i++) {
-    const requestedItem = items[i];
-    const menuItem = menuItems[i];
+  for (const requestedItem of items) {
+    const menuItem = menuById.get(requestedItem.menuItemId);
 
     if (!menuItem) {
       throw new NotFoundError(
@@ -167,6 +176,15 @@ export const createOrderService = async (
 
     if (!menuItem.isAvailable) {
       throw new BadRequestError(`"${menuItem.name}" not available`);
+    }
+
+    if (
+      menuItem.stockQuantity >= 0 &&
+      menuItem.stockQuantity < requestedItem.quantity
+    ) {
+      throw new BadRequestError(
+        `"${menuItem.name}" has insufficient stock.`,
+      );
     }
 
     const effectivePrice =
@@ -187,6 +205,31 @@ export const createOrderService = async (
       subtotal: itemSubtotal,
       specialInstructions: requestedItem.specialInstructions ?? "",
     } as IOrderItem);
+  }
+
+  // Reserve stock atomically (prevents oversell under concurrency)
+  const reserved: Array<{ itemId: string; quantity: number }> = [];
+  try {
+    for (const item of enrichedItems) {
+      const ok = await decrementMenuStockRepo(
+        item.menuItemId.toString(),
+        item.quantity,
+      );
+      if (!ok) {
+        throw new BadRequestError(
+          `"${item.itemName}" has insufficient stock.`,
+        );
+      }
+      reserved.push({
+        itemId: item.menuItemId.toString(),
+        quantity: item.quantity,
+      });
+    }
+  } catch (error) {
+    for (const r of reserved) {
+      await restoreMenuStockRepo(r.itemId, r.quantity);
+    }
+    throw error;
   }
 
   const subtotal = parseFloat(
@@ -289,8 +332,16 @@ export const createOrderService = async (
       paymentSessionId = cfOrder.payment_session_id;
 
       await updateOrderStatusRepo(order._id.toString(), order.status, {
-        paymentId: cfOrder.cf_order_id,
+        paymentId: cfOrder.cf_order_id || order.orderNumber,
       } as any);
+
+      await syncPaymentLedgerAfterCashfreeCreate({
+        orderId: order._id.toString(),
+        userId: studentId,
+        amount: totalAmount,
+        cashfreeOrderId: cfOrder.cf_order_id || order.orderNumber,
+        paymentSessionId: cfOrder.payment_session_id,
+      });
 
       notifyAdminPaymentUpdate(
         toAdminPaymentPayload({
@@ -312,6 +363,13 @@ export const createOrderService = async (
         orderNumber: order.orderNumber,
         error,
       });
+
+      for (const item of enrichedItems) {
+        await restoreMenuStockRepo(
+          item.menuItemId.toString(),
+          item.quantity,
+        );
+      }
 
       await updateOrderStatusRepo(order._id.toString(), "cancelled", {
         cancellationReason: "Payment session creation failed",
@@ -543,6 +601,16 @@ export const rateOrderService = async (
     } as any,
   );
 
+  const cafeId =
+    (order.cafeId as { _id?: { toString(): string } })?._id?.toString() ??
+    order.cafeId.toString();
+
+  await applyCafeRatingRepo(cafeId, stars);
+
+  for (const item of order.items) {
+    await applyMenuItemRatingRepo(item.menuItemId.toString(), stars);
+  }
+
   logger.info("Order rated", { orderId, studentId, stars });
 
   return updatedOrder;
@@ -556,79 +624,47 @@ export const rateOrderService = async (
 export const markOrderPaidByOrderNumberService = async (
   orderNumber: string,
 ): Promise<IOrder> => {
-  const order = await findOrderByOrderNumberForPaymentRepo(orderNumber);
+  // Reuse webhook success path for consistency (manual verify + webhook)
+  const syntheticEvent: CashfreeWebhookPayload = {
+    type: "PAYMENT_SUCCESS_WEBHOOK",
+    data: {
+      order: {
+        order_id: orderNumber,
+        order_amount: 0,
+        order_currency: "INR",
+      },
+      payment: {
+        cf_payment_id: "",
+        payment_status: "SUCCESS",
+        payment_amount: 0,
+        payment_method: {},
+        payment_time: new Date().toISOString(),
+      },
+    },
+    event_time: new Date().toISOString(),
+  };
 
-  if (!order) {
+  // Load amount for mismatch skip (0 means skip check in handler when payment_amount is 0)
+  const existing = await findOrderByOrderNumberForPaymentRepo(orderNumber);
+  if (!existing) {
     throw new NotFoundError("Order not found for this payment.");
   }
 
-  if (["cancelled", "rejected"].includes(order.status)) {
-    logger.warn("Payment webhook received for a cancelled/rejected order", {
-      orderNumber,
-      status: order.status,
-    });
-    return order;
+  if (existing.paymentStatus === "paid" || existing.paymentStatus === "refunded") {
+    return existing;
   }
 
-  if (order.paymentStatus === "paid") {
-    return order;
+  syntheticEvent.data.order.order_amount = existing.totalAmount;
+  syntheticEvent.data.payment.payment_amount = existing.totalAmount;
+
+  await handlePaymentSuccessWebhook(syntheticEvent);
+
+  const updated = await findOrderByOrderNumberForPaymentRepo(orderNumber);
+  if (!updated) {
+    throw new NotFoundError("Order not found for this payment.");
   }
 
-  const updatedOrder = await updateOrderStatusRepo(
-    order._id.toString(),
-    "accepted" as OrderStatus,
-    { paymentStatus: "paid" } as any,
-  );
-
-  logger.info("Order marked as paid via Cashfree webhook", {
-    orderNumber,
-    orderId: order._id,
-  });
-
-  const studentIdStr = (updatedOrder.studentId as any)?._id
-    ? (updatedOrder.studentId as any)._id.toString()
-    : updatedOrder.studentId.toString();
-
-  emitStatusUpdate(studentIdStr, {
-    orderId: updatedOrder._id.toString(),
-    status: updatedOrder.status,
-    message: "Payment received! Your order has been confirmed.",
-  });
-
-  emitNewOrderToCafe(updatedOrder.cafeId.toString(), {
-    orderId: updatedOrder._id,
-    orderNumber: updatedOrder.orderNumber,
-    studentId: updatedOrder.studentId,
-    studentName: (updatedOrder.studentId as any)?.name,
-    studentContact: (updatedOrder.studentId as any)?.phone,
-    items: updatedOrder.items,
-    totalAmount: updatedOrder.totalAmount,
-    notes: updatedOrder.notes,
-    orderType: updatedOrder.orderType,
-    pickupCode:
-      updatedOrder.orderType === "pickup" ? updatedOrder.pickupCode : undefined,
-    deliveryAddress:
-      updatedOrder.orderType === "delivery"
-        ? updatedOrder.deliveryAddress
-        : undefined,
-    createdAt: updatedOrder.createdAt,
-  });
-
-  emitAdminOrderEvent("admin:order:new", {
-    orderId: updatedOrder._id,
-    orderNumber: updatedOrder.orderNumber,
-    cafeId: updatedOrder.cafeId.toString(),
-    studentId: studentIdStr,
-    orderType: updatedOrder.orderType,
-    totalAmount: updatedOrder.totalAmount,
-  });
-
-  notifyAdminPaymentUpdate(
-    toAdminPaymentPayload(updatedOrder),
-    "payment_paid",
-  );
-
-  return updatedOrder;
+  return updated;
 };
 
 /**

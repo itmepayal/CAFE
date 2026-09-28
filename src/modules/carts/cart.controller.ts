@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { ApiResponse } from "../../utils/response/app.response";
 
 import {
   addToCartService,
@@ -27,11 +28,7 @@ export const addToCartController = async (
       req.body.specialInstructions,
     );
 
-    res.status(201).json({
-      success: true,
-      message: "Item added to cart",
-      data: cart,
-    });
+    ApiResponse.success(res, "Item added to cart", cart, 201);
   } catch (error) {
     next(error);
   }
@@ -49,11 +46,7 @@ export const getCartController = async (
 ) => {
   try {
     const cart = await getCartService(req.user!.id);
-
-    res.status(200).json({
-      success: true,
-      data: cart,
-    });
+    ApiResponse.success(res, "Cart fetched", cart);
   } catch (error) {
     next(error);
   }
@@ -76,11 +69,7 @@ export const updateCartItemController = async (
       req.body.quantity,
     );
 
-    res.status(200).json({
-      success: true,
-      message: "Cart updated successfully",
-      data: cart,
-    });
+    ApiResponse.success(res, "Cart updated successfully", cart);
   } catch (error) {
     next(error);
   }
@@ -98,11 +87,7 @@ export const removeCartItemController = async (
 ) => {
   try {
     await removeCartItemService(req.user!.id, req.params.cartItemId);
-
-    res.status(200).json({
-      success: true,
-      message: "Item removed from cart",
-    });
+    ApiResponse.success(res, "Item removed from cart");
   } catch (error) {
     next(error);
   }
@@ -120,11 +105,7 @@ export const clearCartController = async (
 ) => {
   try {
     await clearCartService(req.user!.id);
-
-    res.status(200).json({
-      success: true,
-      message: "Cart cleared successfully",
-    });
+    ApiResponse.success(res, "Cart cleared successfully");
   } catch (error) {
     next(error);
   }

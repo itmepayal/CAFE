@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { createComplaintService } from "./complaint.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
+import { ApiResponse } from "../../utils/response/app.response";
 
 // =========================================
 // CREATE COMPLAINT
@@ -32,11 +33,7 @@ export const createComplaintController = async (
       attachments,
     });
 
-    res.status(201).json({
-      success: true,
-      message: "Complaint created successfully",
-      data: complaint,
-    });
+    ApiResponse.success(res, "Complaint created successfully", complaint, 201);
   } catch (error) {
     next(error);
   }

@@ -27,4 +27,22 @@ describe("swagger documentation routes", () => {
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/swagger/i);
   });
+
+  it("exposes health live ready probes", async () => {
+    const health = await request(app).get("/health");
+    const live = await request(app).get("/live");
+    const ready = await request(app).get("/ready");
+    expect(health.status).toBeGreaterThanOrEqual(200);
+    expect(live.status).toBe(200);
+    expect(live.body.live).toBe(true);
+    expect([200, 503]).toContain(ready.status);
+  });
+
+  it("sets CSP header on /docs", async () => {
+    const res = await request(app).get("/docs/");
+    expect(res.status).toBe(200);
+    const csp = res.headers["content-security-policy"];
+    expect(csp).toBeDefined();
+    expect(String(csp)).toMatch(/default-src/);
+  });
 });

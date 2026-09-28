@@ -25,7 +25,8 @@ export const initializeSocket = (server: HttpServer): Server => {
     pingInterval: SOCKET_CONFIG.PING_INTERVAL_MS,
     connectionStateRecovery: {
       maxDisconnectionDuration: SOCKET_CONFIG.MAX_DISCONNECTION_DURATION_MS,
-      skipMiddlewares: true,
+      // Must re-run authenticateSocket so blocked/inactive users cannot recover access
+      skipMiddlewares: false,
     },
   });
 

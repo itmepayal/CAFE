@@ -100,31 +100,6 @@ mongoose.connection.on("error", (error) => {
   });
 });
 
-/**
- * =========================================================
- * GRACEFUL SHUTDOWN
- * =========================================================
- */
-
-process.on("SIGINT", async () => {
-  try {
-    await mongoose.connection.close();
-
-    logger.info("MongoDB connection closed due to app termination");
-
-    process.exit(0);
-  } catch (error) {
-    logger.error("Error during MongoDB shutdown", {
-      error:
-        error instanceof Error
-          ? {
-              name: error.name,
-              message: error.message,
-              stack: error.stack,
-            }
-          : error,
-    });
-
-    process.exit(1);
-  }
-});
+export const closeDB = async (): Promise<void> => {
+  await mongoose.connection.close();
+};

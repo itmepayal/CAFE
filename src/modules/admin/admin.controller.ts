@@ -29,6 +29,7 @@ import {
   createAdminInviteService,
   listAdminInvitesService,
 } from "./admin-invite.service";
+import { ApiResponse } from "../../utils/response/app.response";
 
 /**
  * =========================================================
@@ -39,15 +40,20 @@ export const getAllUsersController = async (
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
+): Promise<void> => {
   try {
     const { role } = req.query;
-
-    const users = await getAllUsersService(role as string | undefined);
-
-    res.status(200).json({
-      success: true,
-      data: users,
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const result = await getAllUsersService(
+      role as string | undefined,
+      page,
+      limit,
+    );
+    ApiResponse.success(res, "Users fetched", result.users, 200, {
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
     });
   } catch (error) {
     next(error);
@@ -66,7 +72,11 @@ export const approveCafeController = async (
 ) => {
   try {
     const adminId = new mongoose.Types.ObjectId(req?.user?.id);
-    const cafe = await approveCafeService(req.params.id, adminId);
+    const cafe = await approveCafeService(
+      req.params.id,
+      adminId,
+      req.requestId,
+    );
     res.status(200).json({
       success: true,
       message: "Cafe approved successfully",
@@ -88,7 +98,12 @@ export const rejectCafeController = async (
   next: NextFunction,
 ) => {
   try {
-    const cafe = await rejectCafeService(req.params.id, req.body.adminNote);
+    const cafe = await rejectCafeService(
+      req.params.id,
+      req.body.adminNote,
+      req.user?.id,
+      req.requestId,
+    );
 
     res.status(200).json({
       success: true,
@@ -111,7 +126,11 @@ export const toggleCafeBlockController = async (
   next: NextFunction,
 ) => {
   try {
-    const cafe = await toggleCafeBlockService(req.params.id);
+    const cafe = await toggleCafeBlockService(
+      req.params.id,
+      req.user?.id,
+      req.requestId,
+    );
 
     res.status(200).json({
       success: true,
@@ -134,11 +153,18 @@ export const getPendingCafesController = async (
   next: NextFunction,
 ) => {
   try {
-    const cafes = await getPendingCafesService();
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const result = await getPendingCafesService(page, limit);
 
     res.json({
       success: true,
-      data: cafes,
+      data: result.cafes,
+      meta: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+      },
     });
   } catch (error) {
     next(error);
@@ -364,13 +390,13 @@ export const refundOrderController = async (
   next: NextFunction,
 ) => {
   try {
-    const order = await refundOrderService(req.params.id);
+    const order = await refundOrderService(
+      req.params.id,
+      req.user?.id,
+      req.requestId,
+    );
 
-    res.status(200).json({
-      success: true,
-      message: "Order marked as refunded",
-      data: order,
-    });
+    ApiResponse.success(res, "Order refund initiated", order);
   } catch (error) {
     next(error);
   }
@@ -420,16 +446,23 @@ export const createAdminInviteController = async (
 };
 
 export const listAdminInvitesController = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const invites = await listAdminInvitesService();
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const result = await listAdminInvitesService(page, limit);
 
     res.status(200).json({
       success: true,
-      data: invites,
+      data: result.invites,
+      meta: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+      },
     });
   } catch (error) {
     next(error);
@@ -538,6 +571,7 @@ export const markSettlementAsSettledController = async (
     const settlement = await markSettlementAsSettledService(
       settlementId,
       adminId,
+      req.requestId,
     );
 
     res.status(200).json({

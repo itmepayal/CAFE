@@ -7,12 +7,17 @@ import {
   getOrderByNumberForStudentService,
   cancelOrderService,
   rateOrderService,
-  markOrderPaidByOrderNumberService,
   verifyAndSyncOrderPaymentService,
 } from "./order.service";
 
 import { verifyCashfreeWebhookSignature } from "../../config/cashfree.config";
-import { logger } from "../../config/logger.config";
+import logger from "../../config/logger.config";
+import {
+  isWebhookTimestampFresh,
+  processCashfreeWebhookEvent,
+} from "../payment/webhook.service";
+import { CashfreeWebhookPayload } from "../payment/payment.type";
+import { ApiResponse } from "../../utils/response/app.response";
 
 /**
  * =========================================================
@@ -140,7 +145,7 @@ export const getOrderByNumberController = async (
       studentId,
     );
 
-    res.status(200).json({ success: true, data: order });
+    ApiResponse.success(res, "Order fetched", order);
   } catch (error) {
     next(error);
   }
@@ -164,10 +169,7 @@ export const verifyOrderPaymentController = async (
       studentId,
     );
 
-    res.status(200).json({
-      success: true,
-      data: order,
-    });
+    ApiResponse.success(res, "Payment verified", order);
   } catch (error) {
     next(error);
   }
@@ -192,11 +194,7 @@ export const cancelOrderController = async (
       reason: req.body.reason,
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Order cancelled successfully",
-      data: order,
-    });
+    ApiResponse.success(res, "Order cancelled successfully", order);
   } catch (error) {
     next(error);
   }
@@ -222,11 +220,7 @@ export const rateOrderController = async (
       review: req.body.review,
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Order rated successfully",
-      data: order,
-    });
+    ApiResponse.success(res, "Order rated successfully", order);
   } catch (error) {
     next(error);
   }
@@ -257,6 +251,19 @@ export const handleCashfreeWebhookController = async (
       return;
     }
 
+    if (!isWebhookTimestampFresh(timestamp)) {
+      logger.warn("Cashfree webhook timestamp outside allowed skew", {
+        timestamp,
+      });
+
+      res.status(400).json({
+        success: false,
+        message: "Stale webhook timestamp",
+      });
+
+      return;
+    }
+
     const rawBody = Buffer.isBuffer(req.body)
       ? req.body.toString("utf8")
       : JSON.stringify(req.body);
@@ -270,12 +277,9 @@ export const handleCashfreeWebhookController = async (
       return;
     }
 
-    const event = JSON.parse(rawBody);
+    const event = JSON.parse(rawBody) as CashfreeWebhookPayload;
 
-    if (event.type === "PAYMENT_SUCCESS_WEBHOOK") {
-      const orderNumber = event.data.order.order_id;
-      await markOrderPaidByOrderNumberService(orderNumber);
-    }
+    await processCashfreeWebhookEvent(event);
 
     res.status(200).json({
       success: true,

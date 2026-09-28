@@ -14,20 +14,36 @@ import { OrderStatus } from "../order/order.constant";
  * GET ALL USERS
  * =========================================================
  */
-export const getAllUsersRepo = async (role?: string) => {
-  const filter: Record<string, any> = {};
+export const getAllUsersRepo = async (
+  role?: string,
+  page: number = 1,
+  limit: number = 50,
+): Promise<{ users: IUser[]; total: number; page: number; limit: number }> => {
+  const filter: Record<string, unknown> = {};
 
   if (role) {
     filter.role = role;
   }
 
-  return User.find(filter)
-    .select("-deviceTokens")
-    .populate("ownedCafe")
-    .sort({ createdAt: -1 })
-    .catch(() => {
-      throw new InternalServerError("Failed to fetch users");
-    });
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+  const safePage = Math.max(page, 1);
+  const skip = (safePage - 1) * safeLimit;
+
+  try {
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .select("-deviceTokens")
+        .populate("ownedCafe")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(safeLimit),
+      User.countDocuments(filter),
+    ]);
+
+    return { users, total, page: safePage, limit: safeLimit };
+  } catch {
+    throw new InternalServerError("Failed to fetch users");
+  }
 };
 
 /**
@@ -72,11 +88,26 @@ export const saveUserRepo = async (user: IUser): Promise<IUser> => {
 // =========================================
 // FIND PENDING CAFES
 // =========================================
-export const findPendingCafes = async (): Promise<ICafe[]> => {
-  return await Cafe.find({ status: "pending" })
-    .populate("userId", "name email phone")
-    .sort({ createdAt: -1 })
-    .lean();
+export const findPendingCafes = async (
+  page: number = 1,
+  limit: number = 50,
+): Promise<{ cafes: ICafe[]; total: number; page: number; limit: number }> => {
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+  const safePage = Math.max(page, 1);
+  const skip = (safePage - 1) * safeLimit;
+  const filter = { status: "pending" as const };
+
+  const [cafes, total] = await Promise.all([
+    Cafe.find(filter)
+      .populate("userId", "name email phone")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .lean(),
+    Cafe.countDocuments(filter),
+  ]);
+
+  return { cafes: cafes as ICafe[], total, page: safePage, limit: safeLimit };
 };
 
 // =========================================

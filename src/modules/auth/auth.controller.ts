@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { asyncHandler } from "../../utils/handlers/async.handler";
 import { extractRefreshToken } from "../../utils/auth/extract-token";
 import { sendAuthResponse } from "../../utils/response/auth.response";
+import { ApiResponse } from "../../utils/response/app.response";
 
 import {
   googleLogin,
@@ -13,6 +14,10 @@ import {
   adminRegister,
   cafeOwnerLogin,
   logout,
+  forgotPassword,
+  resetPassword,
+  logoutAll,
+  deleteAccount,
 } from "./auth.service";
 
 import { uploadToCloudinary } from "../../config/cloudinary.config";
@@ -42,7 +47,7 @@ export const appleLoginController = asyncHandler(
 export const getCurrentUserController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const user = await getCurrentUser(req.user!.id);
-    res.status(200).json({ success: true, data: user });
+    ApiResponse.success(res, "Current user", user);
   },
 );
 
@@ -51,7 +56,7 @@ export const logoutController = asyncHandler(
     await logout(extractRefreshToken(req));
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
-    res.status(200).json({ success: true, message: "Logout successful" });
+    ApiResponse.success(res, "Logout successful");
   },
 );
 
@@ -68,14 +73,44 @@ export const changeProfileController = asyncHandler(
       profileImage,
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Profile updated successfully",
-      data: user,
-    });
+    ApiResponse.success(res, "Profile updated successfully", user);
   },
 );
 
+export const forgotPasswordController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const result = await forgotPassword(req.body.email);
+    ApiResponse.success(res, result.message);
+  },
+);
+
+export const resetPasswordController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const result = await resetPassword({
+      token: req.body.token,
+      password: req.body.password,
+    });
+    ApiResponse.success(res, result.message);
+  },
+);
+
+export const logoutAllController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const result = await logoutAll(req.user!.id);
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+    ApiResponse.success(res, "All sessions revoked", result);
+  },
+);
+
+export const deleteAccountController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const result = await deleteAccount(req.user!.id);
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+    ApiResponse.success(res, result.message);
+  },
+);
 export const refreshTokenController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const result = await refreshTokens({

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { createComplaintController } from "./complaint.controller";
 
-import { authenticate } from "../../middlewares/auth.middleware";
+import { authenticate, authorize } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate.middleware";
 import { upload } from "../../config/multer.config";
 
@@ -81,6 +81,7 @@ const complaintUpload = upload.fields([{ name: "attachments", maxCount: 5 }]);
 complaintRouter.post(
   "/",
   authenticate,
+  authorize("student"),
   complaintUpload,
   validate(createComplaintSchema),
   createComplaintController,

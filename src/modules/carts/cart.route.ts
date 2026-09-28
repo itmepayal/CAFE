@@ -8,7 +8,7 @@ import {
   clearCartController,
 } from "./cart.controller";
 
-import { authenticate } from "../../middlewares/auth.middleware";
+import { authenticate, authorize } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate.middleware";
 import {
   addToCartSchema,
@@ -59,7 +59,13 @@ const cartRouter = Router();
  *       401:
  *         description: Unauthorized
  */
-cartRouter.post("/", authenticate, validate(addToCartSchema), addToCartController);
+cartRouter.post(
+  "/",
+  authenticate,
+  authorize("student"),
+  validate(addToCartSchema),
+  addToCartController,
+);
 
 /**
  * @swagger
@@ -76,7 +82,7 @@ cartRouter.post("/", authenticate, validate(addToCartSchema), addToCartControlle
  *       401:
  *         description: Unauthorized
  */
-cartRouter.get("/", authenticate, getCartController);
+cartRouter.get("/", authenticate, authorize("student"), getCartController);
 
 /**
  * @swagger
@@ -115,6 +121,7 @@ cartRouter.get("/", authenticate, getCartController);
 cartRouter.patch(
   "/:cartItemId",
   authenticate,
+  authorize("student"),
   validate(updateCartItemSchema),
   updateCartItemController,
 );
@@ -144,6 +151,7 @@ cartRouter.patch(
 cartRouter.delete(
   "/:cartItemId",
   authenticate,
+  authorize("student"),
   validate(cartItemParamSchema),
   removeCartItemController,
 );
@@ -163,6 +171,6 @@ cartRouter.delete(
  *       401:
  *         description: Unauthorized
  */
-cartRouter.delete("/", authenticate, clearCartController);
+cartRouter.delete("/", authenticate, authorize("student"), clearCartController);
 
 export default cartRouter;

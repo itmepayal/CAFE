@@ -5,7 +5,6 @@ import { z } from "zod";
  * COMMON ENUMS
  * =========================================================
  */
-
 const categoryEnum = z.enum([
   "food_quality",
   "wrong_item",
@@ -24,13 +23,11 @@ const statusEnum = z.enum([
   "rejected",
   "closed",
 ]);
-
 /**
  * =========================================================
  * CREATE COMPLAINT
  * =========================================================
  */
-
 export const createComplaintSchema = z.object({
   body: z.object({
     cafeId: z.string().optional(),
@@ -123,7 +120,9 @@ const paginationQuerySchema = z.object({
 
 export const getPaymentsSchema = z.object({
   query: paginationQuerySchema.extend({
-    paymentStatus: z.enum(["pending", "paid", "failed", "refunded"]).optional(),
+    paymentStatus: z
+      .enum(["pending", "paid", "failed", "refund_pending", "refunded"])
+      .optional(),
   }),
 });
 

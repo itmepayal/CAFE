@@ -178,6 +178,7 @@ const menuItemSchema = new Schema<IMenuItem>(
 );
 
 menuItemSchema.index({ name: "text", description: "text" });
+menuItemSchema.index({ cafeId: 1, isDeleted: 1, isAvailable: 1, displayOrder: 1 });
 
 menuItemSchema.virtual("effectivePrice").get(function (this: IMenuItem) {
   return this.discountedPrice ?? this.price;

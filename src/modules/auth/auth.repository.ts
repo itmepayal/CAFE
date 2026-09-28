@@ -89,6 +89,20 @@ export const findUserById = async (userId: string): Promise<IUser> => {
 };
 
 /**
+ * Lightweight user lookup for auth middleware (no populate).
+ */
+export const findUserAuthStatusById = async (
+  userId: string,
+): Promise<Pick<
+  IUser,
+  "_id" | "email" | "role" | "provider" | "isBlocked" | "isActive"
+> | null> => {
+  return User.findById(userId)
+    .select("_id email role provider isBlocked isActive")
+    .lean();
+};
+
+/**
  * =========================================================
  * CREATE GOOGLE USER
  * =========================================================

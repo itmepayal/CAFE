@@ -208,7 +208,7 @@ export const toggleMenuAvailabilityRepo = async (
 // FIND MY COMPLAINTS
 // =========================================
 export const findMyComplaints = async (
-  userId: string,
+  cafeId: string,
   status?: string,
   category?: string,
   page: number = 1,
@@ -219,8 +219,8 @@ export const findMyComplaints = async (
   page: number;
   limit: number;
 }> => {
-  const filter: any = {
-    userId,
+  const filter: Record<string, unknown> = {
+    cafeId,
   };
 
   if (status) {

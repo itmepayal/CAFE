@@ -11,6 +11,7 @@ export const generalRateLimiter = rateLimit({
   },
 });
 
+/** Applied to entire /auth router (login/register/refresh/social). */
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -19,5 +20,29 @@ export const authRateLimiter = rateLimit({
   message: {
     success: false,
     message: "Too many authentication attempts. Please try again later.",
+  },
+});
+
+/** Stricter limiter for forgot/reset password. */
+export const passwordResetRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many password reset attempts. Please try again later.",
+  },
+});
+
+/** Order/payment creation abuse protection (not applied to Cashfree webhooks). */
+export const paymentSensitiveRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many payment requests. Please try again later.",
   },
 });

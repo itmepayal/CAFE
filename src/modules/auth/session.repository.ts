@@ -36,3 +36,11 @@ export const revokeSessionFamily = async (familyId: string): Promise<void> => {
     { revokedAt: new Date() },
   );
 };
+
+export const revokeAllSessionsForUser = async (userId: string): Promise<number> => {
+  const result = await Session.updateMany(
+    { userId, revokedAt: null },
+    { revokedAt: new Date() },
+  );
+  return result.modifiedCount;
+};

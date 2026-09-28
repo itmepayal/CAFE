@@ -38,8 +38,8 @@ export class ApiResponse {
       success: true,
       statusCode,
       message,
-      data: data || null,
-      meta: meta || null,
+      data: data ?? null,
+      meta: meta ?? null,
       timestamp: new Date().toISOString(),
     });
   }

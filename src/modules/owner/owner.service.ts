@@ -691,7 +691,10 @@ export const autoCancelStaleOrdersService = async (): Promise<void> => {
 
   logger.info(`Auto-cancelling ${staleOrders.length} stale pending order(s)`);
 
-  for (const order of staleOrders) {
+  const BATCH_LIMIT = 50;
+  const batch = staleOrders.slice(0, BATCH_LIMIT);
+
+  for (const order of batch) {
     try {
       if (order.status !== "pending") {
         logger.warn("Skipped non-pending order in auto-cancel job", {
@@ -703,7 +706,18 @@ export const autoCancelStaleOrdersService = async (): Promise<void> => {
 
       const reason = "Cafe did not accept the order within 10 minutes";
 
-      await cancelOrderRepo(order._id.toString(), "super_admin", reason, true);
+      let refunded = false;
+      if (order.paymentStatus === "paid") {
+        const refundResult = await processOrderRefund(order, reason);
+        refunded = refundResult.refunded || Boolean(refundResult.alreadyRefunded);
+      }
+
+      await cancelOrderRepo(
+        order._id.toString(),
+        "super_admin",
+        reason,
+        refunded,
+      );
 
       const studentId = order.studentId.toString();
 
@@ -716,8 +730,9 @@ export const autoCancelStaleOrdersService = async (): Promise<void> => {
       emitStatusUpdate(studentId, {
         orderId: order._id.toString(),
         status: "cancelled",
-        message:
-          "Your order was cancelled because the cafe did not respond in time. Your refund will be processed shortly.",
+        message: refunded
+          ? "Your order was cancelled because the cafe did not respond in time. Your refund has been initiated."
+          : "Your order was cancelled because the cafe did not respond in time.",
       });
 
       emitAdminOrderEvent("admin:order:auto_cancelled", {
@@ -725,13 +740,13 @@ export const autoCancelStaleOrdersService = async (): Promise<void> => {
         cafeId: order.cafeId.toString(),
         studentId,
         reason,
-        refunded: true,
+        refunded,
       });
 
       logger.info("Order auto-cancelled due to cafe timeout", {
         orderId: order._id,
         cafeId: order.cafeId,
-        refunded: true,
+        refunded,
       });
     } catch (error) {
       logger.error("Failed to auto-cancel order", {
@@ -742,7 +757,8 @@ export const autoCancelStaleOrdersService = async (): Promise<void> => {
   }
 
   logger.info("Auto-cancel stale orders job completed", {
-    processedCount: staleOrders.length,
+    processedCount: batch.length,
+    remaining: Math.max(0, staleOrders.length - batch.length),
   });
 };
 
@@ -775,7 +791,13 @@ export const cancelSpecificStaleOrderService = async (
 
   const reason = "Cafe did not respond in time";
 
-  await cancelOrderRepo(order._id.toString(), "super_admin", reason);
+  let refunded = false;
+  if (order.paymentStatus === "paid") {
+    const refundResult = await processOrderRefund(order, reason);
+    refunded = refundResult.refunded || Boolean(refundResult.alreadyRefunded);
+  }
+
+  await cancelOrderRepo(order._id.toString(), "super_admin", reason, refunded);
 
   const studentId = order.studentId.toString();
 
@@ -788,7 +810,9 @@ export const cancelSpecificStaleOrderService = async (
   emitStatusUpdate(studentId, {
     orderId: order._id.toString(),
     status: "cancelled",
-    message: STATUS_MESSAGES["cancelled"],
+    message: refunded
+      ? "Your order was cancelled. Refund has been initiated."
+      : STATUS_MESSAGES["cancelled"],
   });
 
   emitAdminOrderEvent("admin:order:auto_cancelled", {
@@ -796,11 +820,13 @@ export const cancelSpecificStaleOrderService = async (
     cafeId: order.cafeId.toString(),
     studentId,
     reason,
+    refunded,
   });
 
   logger.info("Specific order auto-cancelled manually", {
     orderId: order._id,
     cafeId: order.cafeId,
+    refunded,
   });
 };
 
@@ -814,7 +840,7 @@ export const getMyComplaintsService = async (
   page?: number,
   limit?: number,
 ) => {
-  logger.info("Fetching complaints for user", {
+  logger.info("Fetching complaints for cafe owner", {
     userId,
     status,
     category,
@@ -822,9 +848,25 @@ export const getMyComplaintsService = async (
     limit,
   });
 
-  const result = await findMyComplaints(userId, status, category, page, limit);
+  const cafe = await findCafeByUserId(userId);
 
-  logger.info("Complaints fetched successfully", { userId });
+  if (!cafe) {
+    throw new NotFoundError("Cafe not found for this user");
+  }
+
+  const result = await findMyComplaints(
+    cafe._id.toString(),
+    status,
+    category,
+    page,
+    limit,
+  );
+
+  logger.info("Cafe complaints fetched successfully", {
+    userId,
+    cafeId: cafe._id,
+    total: result.total,
+  });
 
   return result;
 };

@@ -29,6 +29,7 @@ import {
 import { authenticate } from "../../middlewares/auth.middleware";
 import { authorize } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate.middleware";
+import { paymentSensitiveRateLimiter } from "../../middlewares/rate-limit.middleware";
 import {
   getAllComplaintsSchema,
   updateComplaintActionSchema,
@@ -954,6 +955,7 @@ adminRouter.patch(
   "/orders/:id/refund",
   authenticate,
   authorize("super_admin"),
+  paymentSensitiveRateLimiter,
   refundOrderController,
 );
 

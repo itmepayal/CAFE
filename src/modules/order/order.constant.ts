@@ -8,6 +8,7 @@ export const PAYMENT_STATUSES = [
   "pending",
   "paid",
   "failed",
+  "refund_pending",
   "refunded",
 ] as const;
 

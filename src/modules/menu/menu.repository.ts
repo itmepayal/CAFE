@@ -58,6 +58,82 @@ export const findMenuItemByIdRepo = async (
   return item;
 };
 
+export const findMenuItemsByIdsRepo = async (
+  itemIds: string[],
+): Promise<IMenuItem[]> => {
+  if (itemIds.length === 0) return [];
+
+  return MenuItem.find({
+    _id: { $in: itemIds },
+    isDeleted: false,
+  });
+};
+
+/**
+ * Atomically decrement stock when stockQuantity >= 0.
+ * stockQuantity === -1 means unlimited (no-op success).
+ */
+export const decrementMenuStockRepo = async (
+  itemId: string,
+  quantity: number,
+): Promise<boolean> => {
+  const item = await MenuItem.findById(itemId).select("stockQuantity");
+  if (!item) return false;
+
+  if (item.stockQuantity < 0) {
+    return true; // unlimited
+  }
+
+  const updated = await MenuItem.findOneAndUpdate(
+    {
+      _id: itemId,
+      isDeleted: false,
+      isAvailable: true,
+      stockQuantity: { $gte: quantity },
+    },
+    {
+      $inc: { stockQuantity: -quantity, totalOrders: quantity },
+    },
+    { new: true },
+  );
+
+  return Boolean(updated);
+};
+
+export const restoreMenuStockRepo = async (
+  itemId: string,
+  quantity: number,
+): Promise<void> => {
+  const item = await MenuItem.findById(itemId).select("stockQuantity");
+  if (!item || item.stockQuantity < 0) return;
+
+  await MenuItem.findByIdAndUpdate(itemId, {
+    $inc: { stockQuantity: quantity },
+  });
+};
+
+export const applyMenuItemRatingRepo = async (
+  itemId: string,
+  stars: number,
+): Promise<void> => {
+  const item = await MenuItem.findById(itemId).select("rating");
+  if (!item) return;
+
+  const totalReviews = (item.rating?.totalReviews ?? 0) + 1;
+  const previousAverage = item.rating?.average ?? 0;
+  const average =
+    totalReviews === 1
+      ? stars
+      : (previousAverage * (totalReviews - 1) + stars) / totalReviews;
+
+  await MenuItem.findByIdAndUpdate(itemId, {
+    $set: {
+      "rating.average": parseFloat(average.toFixed(2)),
+      "rating.totalReviews": totalReviews,
+    },
+  });
+};
+
 /**
  * =========================================================
  * CREATE MENU ITEM

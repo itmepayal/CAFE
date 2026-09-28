@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { serverConfig } from "../config";
 import { UnauthorizedError, ForbiddenError } from "../utils/errors/app.error";
 import { extractAccessToken } from "../utils/auth/extract-token";
+import { findUserAuthStatusById } from "../modules/auth/auth.repository";
 
 interface JwtPayload {
   sub: string;
@@ -12,11 +13,14 @@ interface JwtPayload {
   provider: string;
 }
 
-export const authenticate = (
+/** Single source of truth — matches User.role enum */
+export type AppRole = "student" | "cafe_owner" | "super_admin";
+
+export const authenticate = async (
   req: Request,
   _res: Response,
   next: NextFunction,
-): void => {
+): Promise<void> => {
   try {
     const token = extractAccessToken(req);
 
@@ -29,24 +33,41 @@ export const authenticate = (
       serverConfig.JWT_ACCESS_SECRET,
     ) as JwtPayload;
 
+    const user = await findUserAuthStatusById(decoded.sub);
+
+    if (!user) {
+      throw new UnauthorizedError("Invalid or expired token");
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenError("Account is deactivated");
+    }
+
+    if (user.isBlocked) {
+      throw new ForbiddenError("Account is blocked");
+    }
+
     req.user = {
-      id: decoded.sub,
-      email: decoded.email,
-      role: decoded.role,
-      provider: decoded.provider,
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      provider: user.provider,
     };
 
     next();
-  } catch {
+  } catch (error) {
+    if (error instanceof ForbiddenError || error instanceof UnauthorizedError) {
+      next(error);
+      return;
+    }
+
     next(new UnauthorizedError("Invalid or expired token"));
   }
 };
 
-type Role = "student" | "cafe_owner" | "admin" | "super_admin";
-
-export const authorize = (...allowedRoles: Role[]) => {
+export const authorize = (...allowedRoles: AppRole[]) => {
   return (req: Request, _res: Response, next: NextFunction) => {
-    const userRole = req.user?.role as Role | undefined;
+    const userRole = req.user?.role as AppRole | undefined;
 
     if (!userRole) {
       return next(new UnauthorizedError("No role found"));

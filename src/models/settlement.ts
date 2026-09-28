@@ -63,6 +63,7 @@ const settlementSchema = new Schema<ISettlement>(
 
 settlementSchema.index({ cafeId: 1, createdAt: -1 });
 settlementSchema.index({ cafeId: 1, status: 1 });
+settlementSchema.index({ status: 1, createdAt: 1 });
 
 const Settlement: Model<ISettlement> =
   mongoose.models.Settlement ||

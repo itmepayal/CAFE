@@ -82,10 +82,24 @@ export const markInviteUsedBy = async (
   );
 };
 
-export const listAdminInvitesService = async () => {
-  return AdminInvite.find()
-    .sort({ createdAt: -1 })
-    .populate("createdBy", "name email")
-    .populate("usedBy", "name email")
-    .lean();
+export const listAdminInvitesService = async (
+  page: number = 1,
+  limit: number = 50,
+) => {
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+  const safePage = Math.max(page, 1);
+  const skip = (safePage - 1) * safeLimit;
+
+  const [invites, total] = await Promise.all([
+    AdminInvite.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .populate("createdBy", "name email")
+      .populate("usedBy", "name email")
+      .lean(),
+    AdminInvite.countDocuments(),
+  ]);
+
+  return { invites, total, page: safePage, limit: safeLimit };
 };

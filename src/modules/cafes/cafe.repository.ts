@@ -69,3 +69,25 @@ export const updatedCafe = async (cafeId: string, payload: any) => {
     new: true,
   });
 };
+
+export const applyCafeRatingRepo = async (
+  cafeId: string,
+  stars: number,
+): Promise<void> => {
+  const cafe = await Cafe.findById(cafeId).select("rating");
+  if (!cafe) return;
+
+  const totalReviews = (cafe.rating?.totalReviews ?? 0) + 1;
+  const previousAverage = cafe.rating?.average ?? 0;
+  const average =
+    totalReviews === 1
+      ? stars
+      : (previousAverage * (totalReviews - 1) + stars) / totalReviews;
+
+  await Cafe.findByIdAndUpdate(cafeId, {
+    $set: {
+      "rating.average": parseFloat(average.toFixed(2)),
+      "rating.totalReviews": totalReviews,
+    },
+  });
+};

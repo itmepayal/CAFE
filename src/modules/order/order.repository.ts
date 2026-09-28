@@ -274,9 +274,10 @@ export const cancelOrderRepo = async (
       },
     };
 
-    if (existingOrder.paymentStatus === "paid" && shouldRefund) {
+    if (existingOrder.paymentStatus === "refunded") {
       update.paymentStatus = "refunded";
     }
+    // Never invent "refunded" from "paid" here — callers must run processOrderRefund first.
 
     const order = await Order.findByIdAndUpdate(orderId, update, {
       new: true,
