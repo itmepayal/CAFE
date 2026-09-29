@@ -10,8 +10,6 @@ import {
   adminLoginController,
   adminRegisterController,
   cafeOwnerLoginController,
-  forgotPasswordController,
-  resetPasswordController,
   logoutAllController,
   deleteAccountController,
 } from "./auth.controller";
@@ -21,7 +19,6 @@ import { upload } from "../../config/multer.config";
 import { validate } from "../../middlewares/validate.middleware";
 import {
   authRateLimiter,
-  passwordResetRateLimiter,
 } from "../../middlewares/rate-limit.middleware";
 import {
   updateProfileSchema,
@@ -30,8 +27,6 @@ import {
   adminEmailLoginSchema,
   adminEmailRegisterSchema,
   cafeOwnerLoginSchema,
-  forgotPasswordSchema,
-  resetPasswordSchema,
 } from "./auth.validation";
 
 export const authRouter = Router();
@@ -195,72 +190,6 @@ authRouter.post("/logout", authenticate, logoutController);
  *         description: Unauthorized
  */
 authRouter.post("/logout-all", authenticate, logoutAllController);
-
-/**
- * @swagger
- * /auth/forgot-password:
- *   post:
- *     summary: Request a password reset
- *     description: Always returns a generic success message (anti-enumeration).
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [email]
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *     responses:
- *       200:
- *         description: Generic acknowledgement
- *       429:
- *         description: Rate limited
- */
-authRouter.post(
-  "/forgot-password",
-  passwordResetRateLimiter,
-  validate(forgotPasswordSchema),
-  forgotPasswordController,
-);
-
-/**
- * @swagger
- * /auth/reset-password:
- *   post:
- *     summary: Reset password with a one-time token
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [token, password]
- *             properties:
- *               token:
- *                 type: string
- *               password:
- *                 type: string
- *                 format: password
- *                 minLength: 8
- *     responses:
- *       200:
- *         description: Password updated; sessions revoked
- *       400:
- *         description: Invalid or expired token
- *       429:
- *         description: Rate limited
- */
-authRouter.post(
-  "/reset-password",
-  passwordResetRateLimiter,
-  validate(resetPasswordSchema),
-  resetPasswordController,
-);
 
 /**
  * @swagger

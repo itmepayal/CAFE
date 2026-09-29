@@ -1,6 +1,8 @@
 import { Response } from "express";
 import { setAuthCookies } from "../cookies/cookie.utils";
 import { AuthTokensResult } from "../../modules/auth/auth.tokens";
+import { serializePublicUser } from "./user.serializer";
+import { ApiResponse } from "./app.response";
 
 interface SendAuthResponseOptions {
   res: Response;
@@ -25,16 +27,18 @@ export const sendAuthResponse = ({
     refreshToken: tokens.refreshToken,
   });
 
-  res.status(statusCode).json({
-    success: true,
-    message,
-    ...(meta ? { meta } : {}),
-    data: {
-      user: tokens.user,
+  const responseData = tokens.user ? {
+    user: serializePublicUser(tokens.user),
+    tokens: {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      token: tokens.accessToken,
-      ...(meta ?? {}),
     },
-  });
+  } : {
+    tokens: {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    },
+  };
+
+  ApiResponse.success(res, message, responseData, statusCode, meta);
 };

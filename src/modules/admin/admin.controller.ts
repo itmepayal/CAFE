@@ -104,7 +104,6 @@ export const rejectCafeController = async (
       req.user?.id,
       req.requestId,
     );
-
     res.status(200).json({
       success: true,
       message: "Cafe rejected successfully",

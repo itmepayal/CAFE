@@ -48,7 +48,7 @@ adminRouter.use(authenticate, authorize("super_admin"));
  * @swagger
  * /admin/dashboard:
  *   get:
- *     summary: Admin dashboard statistics (Figma Dashboard screen)
+ *     summary: Admin dashboard statistics
  *     description: >
  *       Returns all stats shown on the admin home screen:
  *       Total Earnings, Active Orders, Total Orders, All Users, New Cafe Requests.
@@ -959,6 +959,54 @@ adminRouter.patch(
   refundOrderController,
 );
 
+/**
+ * @swagger
+ * /admin/invites:
+ *   post:
+ *     summary: Create an admin invite
+ *     description: Super Admin can generate an invite token to create a new admin.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Optional email restriction for the invite
+ *     responses:
+ *       201:
+ *         description: Admin invite created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Admin invite created successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     inviteToken:
+ *                       type: string
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
 adminRouter.post(
   "/invites",
   authenticate,
@@ -967,6 +1015,79 @@ adminRouter.post(
   createAdminInviteController,
 );
 
+/**
+ * @swagger
+ * /admin/invites:
+ *   get:
+ *     summary: List admin invites
+ *     description: Retrieve paginated list of all admin invites.
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - cookieAuth: []
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Invites fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       tokenHash:
+ *                         type: string
+ *                       createdBy:
+ *                         type: object
+ *                       usedAt:
+ *                         type: string
+ *                         format: date-time
+ *                       usedBy:
+ *                         type: object
+ *                       expiresAt:
+ *                         type: string
+ *                         format: date-time
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                       updatedAt:
+ *                         type: string
+ *                         format: date-time
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
 adminRouter.get(
   "/invites",
   authenticate,

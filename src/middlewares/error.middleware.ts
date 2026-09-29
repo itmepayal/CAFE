@@ -25,6 +25,12 @@ export const appErrorHandler: ErrorRequestHandler = (
   res.status(statusCode).json({
     success: false,
     message: appError?.message || "Internal Server Error",
+    data: null,
+    meta: {
+      code: appError?.name
+        ? appError.name.replace(/Error$/, "").replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase()
+        : "INTERNAL_SERVER_ERROR",
+    },
     ...(process.env.NODE_ENV === "development" && {
       stack: (error as Error).stack,
     }),

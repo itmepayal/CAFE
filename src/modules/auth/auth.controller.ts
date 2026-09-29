@@ -14,8 +14,6 @@ import {
   adminRegister,
   cafeOwnerLogin,
   logout,
-  forgotPassword,
-  resetPassword,
   logoutAll,
   deleteAccount,
 } from "./auth.service";
@@ -74,23 +72,6 @@ export const changeProfileController = asyncHandler(
     });
 
     ApiResponse.success(res, "Profile updated successfully", user);
-  },
-);
-
-export const forgotPasswordController = asyncHandler(
-  async (req: Request, res: Response): Promise<void> => {
-    const result = await forgotPassword(req.body.email);
-    ApiResponse.success(res, result.message);
-  },
-);
-
-export const resetPasswordController = asyncHandler(
-  async (req: Request, res: Response): Promise<void> => {
-    const result = await resetPassword({
-      token: req.body.token,
-      password: req.body.password,
-    });
-    ApiResponse.success(res, result.message);
   },
 );
 

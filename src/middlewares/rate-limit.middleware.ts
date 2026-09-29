@@ -23,18 +23,6 @@ export const authRateLimiter = rateLimit({
   },
 });
 
-/** Stricter limiter for forgot/reset password. */
-export const passwordResetRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: "Too many password reset attempts. Please try again later.",
-  },
-});
-
 /** Order/payment creation abuse protection (not applied to Cashfree webhooks). */
 export const paymentSensitiveRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

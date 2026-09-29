@@ -32,8 +32,6 @@ import {
 } from "../admin/admin-invite.service";
 import { hashPassword, comparePassword } from "../../utils/auth/password";
 import { resolveCafeOwnerLoginMeta } from "./cafe-owner-auth.meta";
-import crypto from "crypto";
-import PasswordResetToken from "../../models/password-reset-token";
 import User from "../../models/user";
 import { revokeAllSessionsForUser } from "./session.repository";
 
@@ -264,88 +262,6 @@ export const logout = async (refreshToken?: string): Promise<void> => {
   logger.info("User session revoked");
 };
 
-const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
-
-const hashResetToken = (token: string): string =>
-  crypto.createHash("sha256").update(token).digest("hex");
-
-/**
- * Always returns the same message (anti-enumeration).
- * Only email/password accounts with a passwordHash can reset.
- */
-export const forgotPassword = async (email: string): Promise<{ message: string }> => {
-  const generic = {
-    message:
-      "If an account exists for that email, a password reset request has been processed.",
-  };
-
-  const normalized = email.toLowerCase().trim();
-  const user = await User.findOne({ email: normalized }).select("+passwordHash");
-
-  if (!user || !user.passwordHash || user.provider !== "email") {
-    return generic;
-  }
-
-  if (user.isBlocked || !user.isActive) {
-    return generic;
-  }
-
-  const rawToken = crypto.randomBytes(32).toString("hex");
-  const tokenHash = hashResetToken(rawToken);
-
-  await PasswordResetToken.deleteMany({ userId: user._id, usedAt: null });
-
-  await PasswordResetToken.create({
-    userId: user._id,
-    tokenHash,
-    expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
-  });
-
-  logger.info("Password reset token created", {
-    userId: user._id.toString(),
-  });
-
-  return generic;
-};
-
-export const resetPassword = async (input: {
-  token: string;
-  password: string;
-}): Promise<{ message: string }> => {
-  const tokenHash = hashResetToken(input.token);
-
-  const record = await PasswordResetToken.findOne({
-    tokenHash,
-    usedAt: null,
-    expiresAt: { $gt: new Date() },
-  });
-
-  if (!record) {
-    throw new BadRequestError("Invalid or expired reset token");
-  }
-
-  const user = await User.findById(record.userId).select("+passwordHash");
-  if (!user || !user.isActive || user.isBlocked) {
-    throw new BadRequestError("Invalid or expired reset token");
-  }
-
-  user.passwordHash = await hashPassword(input.password);
-  await user.save();
-
-  record.usedAt = new Date();
-  await record.save();
-
-  await PasswordResetToken.updateMany(
-    { userId: user._id, usedAt: null },
-    { $set: { usedAt: new Date() } },
-  );
-
-  await revokeAllSessionsForUser(user._id.toString());
-
-  logger.info("Password reset completed", { userId: user._id.toString() });
-
-  return { message: "Password updated successfully. Please sign in again." };
-};
 
 export const logoutAll = async (userId: string): Promise<{ revoked: number }> => {
   const revoked = await revokeAllSessionsForUser(userId);
@@ -389,7 +305,6 @@ export const deleteAccount = async (userId: string): Promise<{ message: string }
 
   await user.save();
   await revokeAllSessionsForUser(userId);
-  await PasswordResetToken.deleteMany({ userId: user._id });
 
   logger.info("Account anonymized", { userId });
 

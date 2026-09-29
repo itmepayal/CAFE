@@ -22,33 +22,21 @@ interface ApiMeta {
  * =========================================================
  */
 export class ApiResponse {
-  /**
-   * =========================================================
-   * SUCCESS RESPONSE
-   * =========================================================
-   */
   static success<T>(
     res: Response,
     message: string,
     data?: T,
     statusCode = 200,
-    meta?: ApiMeta,
+    meta?: ApiMeta | null,
   ): Response {
     return res.status(statusCode).json({
       success: true,
-      statusCode,
       message,
       data: data ?? null,
       meta: meta ?? null,
-      timestamp: new Date().toISOString(),
     });
   }
 
-  /**
-   * =========================================================
-   * ERROR RESPONSE
-   * =========================================================
-   */
   static error(
     res: Response,
     message: string,
@@ -57,10 +45,14 @@ export class ApiResponse {
   ): Response {
     return res.status(statusCode).json({
       success: false,
-      statusCode,
       message,
-      errors: errors || null,
-      timestamp: new Date().toISOString(),
+      data: null,
+      meta: {
+        code: (errors as any)?.name
+          ? (errors as any).name.replace(/Error$/, "").replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase()
+          : "INTERNAL_SERVER_ERROR",
+        ...(errors && typeof errors === "object" ? { details: errors } : {}),
+      },
     });
   }
 }
