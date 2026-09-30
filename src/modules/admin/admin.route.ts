@@ -999,6 +999,8 @@ adminRouter.patch(
  *                   properties:
  *                     inviteToken:
  *                       type: string
+ *                       pattern: ^[0-9]{8}$
+ *                       example: "58321471"
  *                     expiresAt:
  *                       type: string
  *                       format: date-time

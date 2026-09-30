@@ -25,11 +25,12 @@ export const verifyProviderToken = async (
   identityToken?: string,
 ): Promise<ProviderProfile> => {
   if (provider === "google") {
-    if (!token) {
-      throw new UnauthorizedError("Google token missing");
+    const idToken = identityToken || token;
+    if (!idToken) {
+      throw new UnauthorizedError("Google identity token missing");
     }
 
-    const googleUser = await verifyGoogleToken(token).catch((err) => {
+    const googleUser = await verifyGoogleToken(idToken).catch((err) => {
       logger.warn(`Google token verification failed: ${err?.message}`);
       throw new UnauthorizedError("Invalid Google token");
     });
@@ -79,8 +80,9 @@ export const findExistingUser = async (
   return findUserByProviderIdOrEmail(profile.providerId, profile.email);
 };
 
-export const findOrCreateStudent = async (
+export const findOrCreateUser = async (
   profile: ProviderProfile,
+  role: "student" | "cafe_owner" = "student"
 ): Promise<IUser> => {
   let user = await findExistingUser(profile);
 
@@ -98,7 +100,7 @@ export const findOrCreateStudent = async (
   }
 
   logger.info(
-    `Creating new student via ${profile.provider} login: ${profile.email}`,
+    `Creating new ${role} via ${profile.provider} login: ${profile.email}`,
   );
 
   if (profile.provider === "google") {
@@ -107,11 +109,13 @@ export const findOrCreateStudent = async (
       email: profile.email,
       profileImage: profile.profileImage,
       providerId: profile.providerId,
+      role,
     });
   } else {
     user = await createAppleUser({
       email: profile.email,
       providerId: profile.providerId,
+      role,
     });
   }
 
@@ -163,7 +167,7 @@ export const loginWithProvider = async (
   options?: AuthenticateUserOptions,
 ): Promise<AuthTokensResult> => {
   const profile = await verifyProviderToken(provider, token, identityToken);
-  const user = await findOrCreateStudent(profile);
+  const user = await findOrCreateUser(profile, "student");
   return authenticateUser(user, options);
 };
 
@@ -185,10 +189,16 @@ export const loginExistingUserWithProvider = async (
 
 export const findOrCreateAdmin = async (
   profile: ProviderProfile,
+  role: "super_admin" | "admin"
 ): Promise<IUser> => {
   let user = await findExistingUser(profile);
 
   if (user) {
+    if (user.role !== role) {
+      user.role = role;
+      await user.save();
+    }
+
     if (
       user.provider !== profile.provider &&
       user.providerId !== profile.providerId
@@ -202,7 +212,7 @@ export const findOrCreateAdmin = async (
   }
 
   logger.info(
-    `Creating new super_admin via ${profile.provider}: ${profile.email}`,
+    `Creating new ${role} via ${profile.provider}: ${profile.email}`,
   );
 
   if (profile.provider === "google") {
@@ -211,12 +221,14 @@ export const findOrCreateAdmin = async (
       email: profile.email,
       profileImage: profile.profileImage,
       providerId: profile.providerId,
+      role,
     });
   } else {
     user = await createAdminAppleUser({
       email: profile.email,
       providerId: profile.providerId,
       name: profile.name,
+      role,
     });
   }
 
@@ -241,7 +253,6 @@ export const loginAdminWithProvider = async (
         `This email is already registered with ${existingUser.provider}. Please sign in using ${existingUser.provider}.`,
       );
     }
-
     return authenticateUser(existingUser, { expectedRole: "super_admin" });
   }
 
@@ -251,12 +262,13 @@ export const loginAdminWithProvider = async (
     );
   }
 
-  await validateAndConsumeAdminInvite(inviteToken, profile.email);
+  const { isBootstrap } = await validateAndConsumeAdminInvite(inviteToken, profile.email);
+  const expectedRole = isBootstrap ? "super_admin" : "admin";
 
-  const user = await findOrCreateAdmin(profile);
+  const user = await findOrCreateAdmin(profile, expectedRole);
   await markInviteUsedBy(inviteToken, user._id.toString());
 
-  return authenticateUser(user, { expectedRole: "super_admin" });
+  return authenticateUser(user, { expectedRole });
 };
 
 export const loginOrSignUpCafeOwnerWithProvider = async (
@@ -271,10 +283,9 @@ export const loginOrSignUpCafeOwnerWithProvider = async (
     if (existingUser.role === "super_admin") {
       throw new UnauthorizedError("Please use the admin login portal");
     }
-
     return authenticateUser(existingUser);
   }
 
-  const user = await findOrCreateStudent(profile);
+  const user = await findOrCreateUser(profile, "cafe_owner");
   return authenticateUser(user);
 };

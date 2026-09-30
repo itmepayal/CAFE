@@ -266,6 +266,8 @@ authRouter.post("/refresh-token", refreshTokenController);
  *                 example: SecurePass123
  *               inviteToken:
  *                 type: string
+ *                 pattern: ^[0-9]{8}$
+ *                 example: "58321471"
  *                 description: From POST /admin/invites or ADMIN_BOOTSTRAP_TOKEN
  *     responses:
  *       201:
@@ -329,7 +331,19 @@ authRouter.post(
  * /auth/cafe-owner/login:
  *   post:
  *     summary: Login or sign up as cafe owner using Google or Apple
- *     description: >
+ *     description: |
+ *       Social Login
+ *
+ *       Supported providers use different authentication credentials:
+ *
+ *       Google:
+ *       Send the Google ID Token in `token`.
+ *
+ *       Apple:
+ *       Send the Apple Identity Token in `identityToken`.
+ *
+ *       Do not send both credentials unless explicitly required by the provider-specific implementation.
+ *
  *       Verifies Google or Apple token and auto-registers a new student account if the user
  *       does not exist. Existing cafe_owner and student accounts are logged in directly.
  *       After sign-up, complete cafe registration via POST /cafes/register. Admin approval
@@ -340,21 +354,40 @@ authRouter.post(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - provider
- *             properties:
- *               provider:
- *                 type: string
- *                 enum:
- *                   - google
- *                   - apple
- *               token:
- *                 type: string
- *                 description: Required when provider is "google"
- *               identityToken:
- *                 type: string
- *                 description: Required when provider is "apple"
+ *             oneOf:
+ *               - title: Google Login
+ *                 type: object
+ *                 required:
+ *                   - provider
+ *                   - token
+ *                 properties:
+ *                   provider:
+ *                     type: string
+ *                     enum:
+ *                       - google
+ *                   token:
+ *                     type: string
+ *                     example: "<GOOGLE_ID_TOKEN>"
+ *                     description: |
+ *                       Authentication credential used for Google login.
+ *                       For provider=google, this field contains the Google ID Token verified by the backend.
+ *                       Do not confuse this with an OAuth access token.
+ *               - title: Apple Login
+ *                 type: object
+ *                 required:
+ *                   - provider
+ *                   - identityToken
+ *                 properties:
+ *                   provider:
+ *                     type: string
+ *                     enum:
+ *                       - apple
+ *                   identityToken:
+ *                     type: string
+ *                     example: "<APPLE_IDENTITY_TOKEN>"
+ *                     description: |
+ *                       Identity token used for Apple login.
+ *                       For provider=apple, this field contains the Apple Identity Token verified by the backend.
  *     responses:
  *       200:
  *         description: Cafe owner login successful

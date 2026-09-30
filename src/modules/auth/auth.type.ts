@@ -1,6 +1,6 @@
 export type Provider = "google" | "apple";
 
-export type ExpectedRole = "student" | "cafe_owner" | "super_admin";
+export type ExpectedRole = "student" | "cafe_owner" | "admin" | "super_admin";
 
 export interface ProviderProfile {
   provider: Provider;

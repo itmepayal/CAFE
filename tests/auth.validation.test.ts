@@ -39,7 +39,7 @@ describe("auth.validation", () => {
         name: "Admin",
         email: "admin@gravly.com",
         password: "password123",
-        inviteToken: "bootstrap-token",
+        inviteToken: "12345678",
       },
     });
     expect(result.success).toBe(true);

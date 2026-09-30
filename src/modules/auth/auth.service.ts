@@ -194,18 +194,21 @@ export const adminRegister = async ({
     );
   }
 
-  await validateAndConsumeAdminInvite(inviteToken, normalizedEmail);
+  const { isBootstrap } = await validateAndConsumeAdminInvite(inviteToken, normalizedEmail);
 
   const passwordHash = await hashPassword(password);
+  const expectedRole = isBootstrap ? "super_admin" : "admin";
+
   const user = await createAdminEmailUser({
     name,
     email: normalizedEmail,
     passwordHash,
+    role: expectedRole,
   });
 
   await markInviteUsedBy(inviteToken, user._id.toString());
 
-  const tokens = await authenticateUser(user, { expectedRole: "super_admin" });
+  const tokens = await authenticateUser(user, { expectedRole });
   logger.info(`Admin registered and logged in: ${user._id}`);
   return tokens;
 };

@@ -11,14 +11,7 @@
  *   - name: Cafe Owner Registration
  *     description: |
  *       5-step Figma onboarding via draft APIs.
- *       | Step | Screen | Endpoint |
- *       |------|--------|----------|
- *       | 1 | Cafe Details | PUT /cafes/register/draft/1 |
- *       | 2 | Location | PUT /cafes/register/draft/2 |
- *       | 3 | Financials (GST optional) | PUT /cafes/register/draft/3 |
- *       | 4 | Owner photo + Layout photos | PUT /cafes/register/draft/4 |
- *       | 5 | Shop establishment + Passbook | PUT /cafes/register/draft/5 |
- *       | Submit | Application Submitted | POST /cafes/register/draft/submit |
+ *       | Submit | Application Submitted | POST /cafes/register |
  *   - name: Cafe Owner
  *     description: Post-approval portal — orders, menu, transactions, profile.
  *   - name: Owner Socket
@@ -36,12 +29,30 @@
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [provider]
- *             properties:
- *               provider: { type: string, enum: [google, apple] }
- *               token: { type: string, description: Google ID token }
- *               identityToken: { type: string, description: Apple identity token }
+ *             oneOf:
+ *               - title: Google Login
+ *                 type: object
+ *                 required: [provider, token]
+ *                 properties:
+ *                   provider: { type: string, enum: [google] }
+ *                   token:
+ *                     type: string
+ *                     example: "<GOOGLE_ID_TOKEN>"
+ *                     description: |
+ *                       Authentication credential used for Google login.
+ *                       For provider=google, this field contains the Google ID Token verified by the backend.
+ *                       Do not confuse this with an OAuth access token.
+ *               - title: Apple Login
+ *                 type: object
+ *                 required: [provider, identityToken]
+ *                 properties:
+ *                   provider: { type: string, enum: [apple] }
+ *                   identityToken:
+ *                     type: string
+ *                     example: "<APPLE_IDENTITY_TOKEN>"
+ *                     description: |
+ *                       Identity token used for Apple login.
+ *                       For provider=apple, this field contains the Apple Identity Token verified by the backend.
  *     responses:
  *       200:
  *         description: Login successful
@@ -75,91 +86,6 @@
  *     responses:
  *       200:
  *         description: User profile
- */
-
-/**
- * @swagger
- * /cafes/register/draft:
- *   get:
- *     summary: Load saved registration draft
- *     tags: [Cafe Owner Registration]
- *     security: [{ bearerAuth: [] }, { cookieAuth: [] }]
- *     responses:
- *       200:
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean }
- *                 data:
- *                   $ref: '#/components/schemas/CafeRegistrationDraft'
- *   delete:
- *     summary: Clear registration draft
- *     tags: [Cafe Owner Registration]
- *     security: [{ bearerAuth: [] }, { cookieAuth: [] }]
- *     responses:
- *       200:
- *         $ref: '#/components/schemas/OwnerSuccessResponse'
- */
-
-/**
- * @swagger
- * /cafes/register/draft/{step}:
- *   put:
- *     summary: Save registration step (1–5)
- *     tags: [Cafe Owner Registration]
- *     security: [{ bearerAuth: [] }, { cookieAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: step
- *         required: true
- *         schema: { type: integer, minimum: 1, maximum: 5 }
- *     requestBody:
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               cafeName: { type: string }
- *               ownerName: { type: string }
- *               description: { type: string }
- *               mobile: { type: string }
- *               email: { type: string }
- *               searchLocation: { type: string }
- *               street: { type: string }
- *               city: { type: string }
- *               state: { type: string }
- *               pincode: { type: string }
- *               landmark: { type: string }
- *               gstId: { type: string, description: Optional GST ID }
- *               accountHolderName: { type: string }
- *               bankName: { type: string }
- *               accountNumber: { type: string }
- *               confirmAccountNumber: { type: string }
- *               ifscCode: { type: string }
- *               ownerPhoto: { type: string, format: binary }
- *               layoutPhotos: { type: array, items: { type: string, format: binary } }
- *               shopEstablishmentCertificate: { type: string, format: binary }
- *               bankPassbookPhoto: { type: string, format: binary }
- *     responses:
- *       200:
- *         description: Step saved
- */
-
-/**
- * @swagger
- * /cafes/register/draft/submit:
- *   post:
- *     summary: Submit application for admin approval
- *     description: Figma "Application Submitted!" — creates cafe with status pending.
- *     tags: [Cafe Owner Registration]
- *     security: [{ bearerAuth: [] }, { cookieAuth: [] }]
- *     responses:
- *       201:
- *         $ref: '#/components/schemas/OwnerSuccessResponse'
- *       400:
- *         description: Draft incomplete (missing steps or photos)
  */
 
 /**

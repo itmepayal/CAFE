@@ -12,9 +12,14 @@ export const validate =
       });
 
       if (!result.success) {
-        const errors = result.error.flatten();
+        const formattedErrors: Record<string, string[]> = {};
+        result.error.issues.forEach((issue) => {
+          const path = issue.path.join(".");
+          if (!formattedErrors[path]) formattedErrors[path] = [];
+          formattedErrors[path].push(issue.message);
+        });
 
-        throw new BadRequestError(JSON.stringify(errors.fieldErrors));
+        throw new BadRequestError(JSON.stringify(formattedErrors));
       }
 
       if (result.data.body) {

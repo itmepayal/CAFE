@@ -23,6 +23,12 @@ const ROLE_PERMISSIONS: Record<AppRole, ReadonlySet<Permission>> = {
     PERMISSIONS.OWNER_MANAGE_ORDERS,
     PERMISSIONS.OWNER_MANAGE_MENU,
   ]),
+  admin: new Set([
+    PERMISSIONS.ADMIN_MANAGE_CAFES,
+    PERMISSIONS.ADMIN_MANAGE_ORDERS,
+    PERMISSIONS.ADMIN_REFUND,
+    PERMISSIONS.ADMIN_SETTLE,
+  ]),
   super_admin: new Set(Object.values(PERMISSIONS)),
 };
 

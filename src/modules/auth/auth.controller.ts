@@ -3,7 +3,9 @@ import { asyncHandler } from "../../utils/handlers/async.handler";
 import { extractRefreshToken } from "../../utils/auth/extract-token";
 import { sendAuthResponse } from "../../utils/response/auth.response";
 import { ApiResponse } from "../../utils/response/app.response";
-
+import {
+  UnauthorizedError,
+} from "../../utils/errors/app.error";
 import {
   googleLogin,
   appleLogin,
@@ -45,6 +47,9 @@ export const appleLoginController = asyncHandler(
 export const getCurrentUserController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const user = await getCurrentUser(req.user!.id);
+    if (!user) {
+      throw new UnauthorizedError("User no longer exists");
+    }
     ApiResponse.success(res, "Current user", user);
   },
 );

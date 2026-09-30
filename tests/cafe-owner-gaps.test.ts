@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   registerCafeSchema,
-  saveDraftStep1Schema,
-  saveDraftStep3Schema,
   collectFigmaRegistrationMediaErrors,
   REGISTRATION_MIN_LAYOUT_PHOTOS,
 } from "../src/modules/cafes/cafe.validation";
@@ -27,61 +25,32 @@ describe("cafe owner registration validation", () => {
     expect(result.success).toBe(false);
   });
 
-  it("accepts mobile with +91 prefix on step 1", () => {
-    const result = saveDraftStep1Schema.safeParse({
-      body: {
-        cafeName: "HM Cafe",
-        ownerName: "Tejash",
-        mobile: "+91 9876543210",
-      },
-    });
+  const validPayload = {
+    cafeName: "HM Cafe",
+    ownerName: "Tejash",
+    mobile: "+91 9876543210",
+    accountHolderName: "Tejash",
+    accountNumber: "123456789",
+    confirmAccountNumber: "123456789",
+    ifscCode: "hdfc0001234",
+  };
 
+  it("accepts valid full payload and normalizes fields", () => {
+    const result = registerCafeSchema.safeParse({ body: validPayload });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.body.mobile).toBe("9876543210");
-    }
-  });
-
-  it("accepts Figma step 3 with optional gstId", () => {
-    const result = saveDraftStep3Schema.safeParse({
-      body: {
-        accountHolderName: "Tejash",
-        accountNumber: "123456789",
-        confirmAccountNumber: "123456789",
-        bankName: "HDFC Bank",
-        ifscCode: "HDFC0001234",
-      },
-    });
-
-    expect(result.success).toBe(true);
-  });
-
-  it("normalizes lowercase IFSC on step 3", () => {
-    const result = saveDraftStep3Schema.safeParse({
-      body: {
-        accountHolderName: "Tejash",
-        accountNumber: "123456789",
-        confirmAccountNumber: "123456789",
-        ifscCode: "hdfc0001234",
-      },
-    });
-
-    expect(result.success).toBe(true);
-    if (result.success) {
       expect(result.data.body.ifscCode).toBe("HDFC0001234");
     }
   });
 
-  it("rejects mismatched account numbers on step 3", () => {
-    const result = saveDraftStep3Schema.safeParse({
+  it("rejects mismatched account numbers", () => {
+    const result = registerCafeSchema.safeParse({
       body: {
-        accountHolderName: "Tejash",
-        accountNumber: "123456789",
+        ...validPayload,
         confirmAccountNumber: "987654321",
-        ifscCode: "HDFC0001234",
       },
     });
-
     expect(result.success).toBe(false);
   });
 

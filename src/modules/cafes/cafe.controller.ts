@@ -5,12 +5,6 @@ import {
   getCafeByIdService,
   getMyCafeService,
 } from "./cafe.service";
-import {
-  getRegistrationDraftService,
-  saveRegistrationDraftStepService,
-  submitRegistrationDraftService,
-  clearRegistrationDraftService,
-} from "./cafe-draft.service";
 import { uploadToCloudinary } from "../../config/cloudinary.config";
 import { collectFigmaRegistrationMediaErrors } from "./cafe.validation";
 import { BadRequestError } from "../../utils/errors/app.error";
@@ -123,124 +117,6 @@ export const registerCafeController = async (
   }
 };
 
-// =========================================
-// GET REGISTRATION DRAFT
-// =========================================
-export const getRegistrationDraftController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const userId = req.user?.id as string;
-    const draft = await getRegistrationDraftService(userId);
-
-    ApiResponse.success(res, "Registration draft", draft);
-  } catch (error) {
-    next(error);
-  }
-};
-
-// =========================================
-// SAVE REGISTRATION DRAFT STEP
-// =========================================
-export const saveRegistrationDraftStepController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const userId = req.user?.id as string;
-    const step = Number(req.params.step);
-    const files = req.files as UploadedFiles;
-    let stepData: Record<string, unknown> = { ...req.body };
-
-    if (step === 4) {
-      const existingDraft = await getRegistrationDraftService(userId);
-      const existingStep4 = (existingDraft as { step4?: Record<string, unknown> }).step4 ?? {};
-
-      if (files?.ownerPhoto?.[0]) {
-        stepData.ownerPhoto = await uploadFile(files.ownerPhoto[0], "cafes");
-      }
-
-      const newLayout = files?.layoutPhotos?.length
-        ? await uploadMany(files.layoutPhotos, "cafes/layout")
-        : [];
-
-      stepData = {
-        ...existingStep4,
-        ...stepData,
-        layoutPhotos: [
-          ...((existingStep4.layoutPhotos as string[]) ?? []),
-          ...newLayout,
-        ],
-      };
-    }
-
-    if (step === 5) {
-      const existingDraft = await getRegistrationDraftService(userId);
-      const existingStep5 = (existingDraft as { step5?: Record<string, unknown> }).step5 ?? {};
-
-      if (files?.shopEstablishmentCertificate?.[0]) {
-        stepData.shopEstablishmentCertificate = await uploadFile(
-          files.shopEstablishmentCertificate[0],
-          "cafes/docs",
-        );
-      }
-
-      if (files?.bankPassbookPhoto?.[0]) {
-        stepData.bankPassbookPhoto = await uploadFile(
-          files.bankPassbookPhoto[0],
-          "cafes/docs",
-        );
-      }
-
-      stepData = { ...existingStep5, ...stepData };
-    }
-
-    const draft = await saveRegistrationDraftStepService(userId, step, stepData);
-
-    ApiResponse.success(res, `Step ${step} saved successfully`, draft);
-  } catch (error) {
-    next(error);
-  }
-};
-
-// =========================================
-// SUBMIT REGISTRATION DRAFT
-// =========================================
-export const submitRegistrationDraftController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const userId = req.user?.id as string;
-    const cafe = await submitRegistrationDraftService(userId);
-
-    ApiResponse.success(res, "Cafe registration submitted successfully", cafe, 201);
-  } catch (error) {
-    next(error);
-  }
-};
-
-// =========================================
-// CLEAR REGISTRATION DRAFT
-// =========================================
-export const clearRegistrationDraftController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const userId = req.user?.id as string;
-    await clearRegistrationDraftService(userId);
-
-    ApiResponse.success(res, "Registration draft cleared");
-  } catch (error) {
-    next(error);
-  }
-};
 
 // =========================================
 // GET APPROVED CAFES

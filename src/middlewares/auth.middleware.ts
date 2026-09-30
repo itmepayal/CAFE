@@ -13,8 +13,7 @@ interface JwtPayload {
   provider: string;
 }
 
-/** Single source of truth — matches User.role enum */
-export type AppRole = "student" | "cafe_owner" | "super_admin";
+export type AppRole = "student" | "cafe_owner" | "admin" | "super_admin";
 
 export const authenticate = async (
   req: Request,

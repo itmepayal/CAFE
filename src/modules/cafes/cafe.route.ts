@@ -4,17 +4,13 @@ import {
   getApprovedCafesController,
   getMyCafeController,
   getCafeByIdController,
-  getRegistrationDraftController,
-  saveRegistrationDraftStepController,
-  submitRegistrationDraftController,
-  clearRegistrationDraftController,
 } from "./cafe.controller";
 
 import { upload } from "../../config/multer.config";
 import { authenticate, authorize } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate.middleware";
 
-import { registerCafeSchema, getCafeQuerySchema, draftStepParamsSchema, saveDraftStep1Schema, saveDraftStep2Schema, saveDraftStep3Schema, saveDraftStep4Schema, saveDraftStep5Schema, submitDraftSchema } from "./cafe.validation";
+import { registerCafeSchema, getCafeQuerySchema } from "./cafe.validation";
 
 const cafeRouter = Router();
 
@@ -171,115 +167,6 @@ cafeRouter.post(
   registerCafeController,
 );
 
-const draftUpload = upload.fields([
-  { name: "ownerPhoto", maxCount: 1 },
-  { name: "layoutPhotos", maxCount: 10 },
-  { name: "shopEstablishmentCertificate", maxCount: 1 },
-  { name: "bankPassbookPhoto", maxCount: 1 },
-]);
-
-/**
- * @swagger
- * /cafes/register/draft:
- *   get:
- *     summary: Get cafe registration draft (multi-step onboarding)
- *     tags: [Cafe]
- *     security:
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: Draft fetched successfully
- */
-cafeRouter.get(
-  "/register/draft",
-  authenticate,
-  authorize("student", "cafe_owner", "super_admin"),
-  getRegistrationDraftController,
-);
-
-/**
- * @swagger
- * /cafes/register/draft/{step}:
- *   put:
- *     summary: Save a registration draft step (1-5)
- *     tags: [Cafe]
- *     security:
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: step
- *         required: true
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 5
- *     responses:
- *       200:
- *         description: Draft step saved successfully
- */
-cafeRouter.put(
-  "/register/draft/:step",
-  authenticate,
-  authorize("student", "cafe_owner", "super_admin"),
-  draftUpload,
-  validate(draftStepParamsSchema),
-  (req, res, next) => {
-    const step = Number(req.params.step);
-    const schemas = [
-      saveDraftStep1Schema,
-      saveDraftStep2Schema,
-      saveDraftStep3Schema,
-      saveDraftStep4Schema,
-      saveDraftStep5Schema,
-    ];
-    const schema = schemas[step - 1];
-    if (!schema) {
-      res.status(400).json({ success: false, message: "Invalid step" });
-      return;
-    }
-    validate(schema)(req, res, next);
-  },
-  saveRegistrationDraftStepController,
-);
-
-/**
- * @swagger
- * /cafes/register/draft/submit:
- *   post:
- *     summary: Submit completed registration draft for admin approval
- *     tags: [Cafe]
- *     security:
- *       - cookieAuth: []
- *     responses:
- *       201:
- *         description: Registration submitted successfully
- */
-cafeRouter.post(
-  "/register/draft/submit",
-  authenticate,
-  authorize("student", "cafe_owner", "super_admin"),
-  validate(submitDraftSchema),
-  submitRegistrationDraftController,
-);
-
-/**
- * @swagger
- * /cafes/register/draft:
- *   delete:
- *     summary: Clear registration draft
- *     tags: [Cafe]
- *     security:
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: Draft cleared successfully
- */
-cafeRouter.delete(
-  "/register/draft",
-  authenticate,
-  authorize("student", "cafe_owner", "super_admin"),
-  clearRegistrationDraftController,
-);
 
 /**
  * @swagger

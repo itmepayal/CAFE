@@ -32,11 +32,11 @@ const validateProviderTokens = (
   data: z.infer<typeof providerFieldsSchema>,
   ctx: z.RefinementCtx,
 ): void => {
-  if (data.provider === "google" && !data.token) {
+  if (data.provider === "google" && !data.token && !data.identityToken) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Google token is required when provider is google",
-      path: ["token"],
+      message: "Google identityToken (or legacy token) is required",
+      path: ["identityToken"],
     });
   }
 
@@ -64,7 +64,7 @@ export const adminEmailRegisterSchema = z.object({
       .string()
       .min(8, "Password must be at least 8 characters")
       .max(128),
-    inviteToken: z.string().min(1).optional(),
+    inviteToken: z.string().regex(/^[0-9]{8}$/, "Invite token must be exactly 8 digits").optional(),
   }),
 });
 
@@ -76,7 +76,7 @@ export const cafeOwnerLoginSchema = z.object({
 export const adminLoginSchema = z.object({
   body: providerFieldsSchema
     .extend({
-      inviteToken: z.string().min(1).optional(),
+      inviteToken: z.string().regex(/^[0-9]{8}$/, "Invite token must be exactly 8 digits").optional(),
     })
     .superRefine(validateProviderTokens),
 });

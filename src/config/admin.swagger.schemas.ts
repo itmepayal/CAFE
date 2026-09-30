@@ -156,7 +156,9 @@ export const adminSwaggerSchemas = {
       },
       inviteToken: {
         type: "string",
-        description: "From POST /admin/invites or ADMIN_BOOTSTRAP_TOKEN",
+        pattern: "^[0-9]{8}$",
+        example: "58321471",
+        description: "8-digit numeric token from POST /admin/invites or ADMIN_BOOTSTRAP_TOKEN",
       },
     },
   },

@@ -19,68 +19,6 @@ const gstIdSchema = z
   .optional()
   .or(z.literal(""));
 
-/** Figma Step 1 — Cafe Details */
-export const saveDraftStep1Schema = z.object({
-  body: z.object({
-    cafeName: z.string().trim().min(3).max(150),
-    ownerName: z.string().trim().min(2).max(100),
-    description: z.string().trim().max(1000).optional(),
-    mobile: mobileSchema,
-    email: z.string().email("Invalid email").optional(),
-  }),
-});
-
-/** Figma Step 2 — Location Address */
-export const saveDraftStep2Schema = z.object({
-  body: z.object({
-    searchLocation: z.string().trim().max(300).optional(),
-    street: z.string().trim().max(200).optional(),
-    area: z.string().trim().max(100).optional(),
-    city: z.string().trim().max(100).optional(),
-    state: z.string().trim().max(100).optional(),
-    pincode: pincodeSchema.optional(),
-    landmark: z.string().trim().max(200).optional(),
-    latitude: z.coerce.number().min(-90).max(90).optional(),
-    longitude: z.coerce.number().min(-180).max(180).optional(),
-  }),
-});
-
-/** Figma Step 3 — Financials (GST optional) */
-export const saveDraftStep3Schema = z.object({
-  body: z
-    .object({
-      gstId: gstIdSchema,
-      accountHolderName: z.string().trim().min(2).max(100),
-      accountNumber: accountNumberSchema,
-      confirmAccountNumber: accountNumberSchema,
-      bankName: bankNameSchema.optional(),
-      ifscCode: ifscSchema,
-    })
-    .refine((data) => data.accountNumber === data.confirmAccountNumber, {
-      message: "Account numbers do not match",
-      path: ["confirmAccountNumber"],
-    }),
-});
-
-/** Figma Step 4 — owner photo + layout/cafe photos (files in controller) */
-export const saveDraftStep4Schema = z.object({
-  body: z.object({}).optional(),
-});
-
-/** Figma Step 5 — shop establishment + bank passbook (files in controller) */
-export const saveDraftStep5Schema = z.object({
-  body: z.object({}).optional(),
-});
-
-export const draftStepParamsSchema = z.object({
-  params: z.object({
-    step: z.coerce.number().int().min(1).max(5),
-  }),
-});
-
-export const submitDraftSchema = z.object({
-  body: z.object({}).optional(),
-});
 
 export const registerCafeSchema = z.object({
   body: z

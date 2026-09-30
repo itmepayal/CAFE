@@ -5,7 +5,7 @@ import {
   findCafeByUserId,
   updatedCafe,
 } from "./cafe.repository";
-import { BadRequestError, NotFoundError } from "../../utils/errors/app.error";
+import { BadRequestError, ConflictError, NotFoundError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
 import { emitAdminCafeRequest } from "../../socket/admin";
 
@@ -46,7 +46,7 @@ export const registerCafeService = async (userId: string, payload: any) => {
     }
 
     logger.warn(`User ${userId} already has a registered cafe`);
-    throw new BadRequestError("Cafe already registered for this user");
+    throw new ConflictError("Cafe already registered for this user");
   }
 
   const cafe = await createCafe({
@@ -78,8 +78,7 @@ export const getApprovedCafesService = async (
   isOpen?: boolean,
 ) => {
   logger.info(
-    `Fetching approved cafes (search: ${search ?? "none"}, city: ${
-      city ?? "none"
+    `Fetching approved cafes (search: ${search ?? "none"}, city: ${city ?? "none"
     }, isOpen: ${isOpen ?? "any"}, page: ${page}, limit: ${limit})`,
   );
 
@@ -100,13 +99,16 @@ export const getCafeByIdService = async (id: string) => {
   }
 
   if (
-    cafe.status === "approved" &&
-    (!cafe.isVisible || cafe.isBlocked)
+    cafe.status !== "approved" ||
+    !cafe.isVisible ||
+    cafe.isBlocked
   ) {
     throw new NotFoundError("Cafe not found");
   }
 
-  return cafe;
+  const { bankDetails, documents, registrationFeedback, adminNote, ...publicCafe } = cafe as any;
+
+  return publicCafe;
 };
 
 // =========================================

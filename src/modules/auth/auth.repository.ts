@@ -14,6 +14,7 @@ interface CreateGoogleUserPayload {
   email?: string;
   profileImage?: string;
   providerId: string;
+  role?: "student" | "cafe_owner" | "admin" | "super_admin";
 }
 
 /**
@@ -24,6 +25,7 @@ interface CreateGoogleUserPayload {
 interface CreateAppleUserPayload {
   email?: string;
   providerId: string;
+  role?: "student" | "cafe_owner" | "admin" | "super_admin";
 }
 
 /**
@@ -117,6 +119,7 @@ export const createGoogleUser = async (
 
     provider: "google",
     providerId: payload.providerId,
+    role: payload.role,
 
     isEmailVerified: true,
   }).catch(() => {
@@ -139,6 +142,7 @@ export const createAppleUser = async (
 
     provider: "apple",
     providerId: payload.providerId,
+    role: payload.role,
 
     isEmailVerified: true,
   }).catch(() => {
@@ -190,6 +194,7 @@ export const createAdminGoogleUser = async (data: {
   email: string;
   profileImage?: string;
   providerId: string;
+  role?: "super_admin" | "admin";
 }): Promise<IUser> => {
   const user = await User.create({
     name: data.name,
@@ -197,7 +202,7 @@ export const createAdminGoogleUser = async (data: {
     profileImage: data.profileImage,
     provider: "google",
     providerId: data.providerId,
-    role: "super_admin",
+    role: data.role ?? "admin",
     isBlocked: false,
   });
 
@@ -208,13 +213,14 @@ export const createAdminAppleUser = async (data: {
   email: string;
   providerId: string;
   name?: string;
+  role?: "super_admin" | "admin";
 }): Promise<IUser> => {
   const user = await User.create({
     name: data.name ?? "Admin",
     email: data.email,
     provider: "apple",
     providerId: data.providerId,
-    role: "super_admin",
+    role: data.role ?? "admin",
     isBlocked: false,
   });
 
@@ -235,6 +241,7 @@ export const createAdminEmailUser = async (data: {
   name: string;
   email: string;
   passwordHash: string;
+  role?: "super_admin" | "admin";
 }): Promise<IUser> => {
   const normalizedEmail = data.email.toLowerCase().trim();
 
@@ -244,7 +251,7 @@ export const createAdminEmailUser = async (data: {
     provider: "email",
     providerId: `email:${normalizedEmail}`,
     passwordHash: data.passwordHash,
-    role: "super_admin",
+    role: data.role ?? "admin",
     isBlocked: false,
     isEmailVerified: true,
   }).catch(() => {
