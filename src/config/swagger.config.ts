@@ -75,6 +75,47 @@ const options: swaggerJsdoc.Options = {
         ...ownerSwaggerSchemas,
         ...studentSwaggerSchemas,
 
+        PublicCafe: {
+          type: "object",
+          description: "Discovery-safe Cafe fields. Excludes owner, bank, KYC, and admin data.",
+          properties: {
+            _id: { type: "string" },
+            cafeName: { type: "string" },
+            ownerName: { type: "string" },
+            description: { type: "string" },
+            address: { type: "object", additionalProperties: { type: "string" } },
+            location: {
+              type: "object",
+              properties: {
+                latitude: { type: "number" },
+                longitude: { type: "number" },
+              },
+            },
+            cafeImage: { type: "string" },
+            menuImage: { type: "string" },
+            gallery: { type: "array", items: { type: "string" } },
+            layoutPhotos: { type: "array", items: { type: "string" } },
+            interiorPhotos: { type: "array", items: { type: "string" } },
+            exteriorPhotos: { type: "array", items: { type: "string" } },
+            socialMedia: { type: "object", additionalProperties: { type: "string" } },
+            isOpen: { type: "boolean" },
+            isVisible: { type: "boolean" },
+            isFeatured: { type: "boolean" },
+            supportsDelivery: { type: "boolean" },
+            status: { type: "string", enum: ["approved"] },
+            rating: {
+              type: "object",
+              properties: {
+                average: { type: "number" },
+                totalReviews: { type: "integer" },
+              },
+            },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+            isApproved: { type: "boolean" },
+          },
+        },
+
         Cafe: {
           type: "object",
           properties: {

@@ -30,6 +30,49 @@ export const revokeSessionByTokenHash = async (
   await Session.updateOne({ tokenHash }, { revokedAt: new Date() });
 };
 
+export const consumeAndCreateReplacementSession = async (
+  input: {
+    tokenHash: string;
+    userId: string;
+    sessionId: string;
+    familyId: string;
+  },
+  replacement: CreateSessionPayload,
+): Promise<boolean> => {
+  const mongoSession = await Session.startSession();
+  try {
+    const rotated = await mongoSession.withTransaction(async () => {
+      const consumed = await Session.findOneAndUpdate(
+        {
+          ...input,
+          revokedAt: null,
+          expiresAt: { $gt: new Date() },
+        },
+        { $set: { revokedAt: new Date() } },
+        { new: false, session: mongoSession },
+      );
+      if (!consumed) return false;
+
+      await Session.create([replacement], { session: mongoSession });
+      return true;
+    });
+    return rotated === true;
+  } finally {
+    await mongoSession.endSession();
+  }
+};
+
+export const revokeSessionByTokenHashAndUser = async (
+  tokenHash: string,
+  userId: string,
+): Promise<boolean> => {
+  const result = await Session.updateOne(
+    { tokenHash, userId, revokedAt: null, expiresAt: { $gt: new Date() } },
+    { $set: { revokedAt: new Date() } },
+  );
+  return result.modifiedCount === 1;
+};
+
 export const revokeSessionFamily = async (familyId: string): Promise<void> => {
   await Session.updateMany(
     { familyId, revokedAt: null },

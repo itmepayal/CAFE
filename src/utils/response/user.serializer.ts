@@ -20,3 +20,20 @@ export const serializePublicUser = (user: any) => {
     isCafeOwner: user.isCafeOwner,
   };
 };
+
+export const serializeCurrentUser = (user: any) => {
+  if (!user) return null;
+  return {
+    id: user._id?.toString?.() ?? user.id,
+    name: user.name,
+    email: user.email,
+    profileImage: user.profileImage,
+    phone: user.phone,
+    role: user.role,
+    provider: user.provider,
+    isEmailVerified: user.isEmailVerified,
+    university: user.university,
+    hostel: user.hostel,
+    isCafeOwner: user.isCafeOwner,
+  };
+};

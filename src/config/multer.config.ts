@@ -44,11 +44,20 @@ const fileFilter: multer.Options["fileFilter"] = (_req, file, cb) => {
   cb(null, true);
 };
 
-export const upload = multer({
+const multerOptions: multer.Options = {
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024,
     files: 12,
   },
   fileFilter,
+};
+
+export const upload = multer(multerOptions);
+
+// Cafe registration supports up to 46 canonical files plus two optional legacy
+// aliases. Keep this limit route-specific so other upload routes retain 12.
+export const cafeRegistrationUpload = multer({
+  ...multerOptions,
+  limits: { ...multerOptions.limits, files: 48 },
 });

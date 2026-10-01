@@ -44,6 +44,30 @@ describe("cafe owner registration validation", () => {
     }
   });
 
+  it("accepts an empty optional email but rejects a malformed non-empty email", () => {
+    expect(
+      registerCafeSchema.safeParse({ body: { ...validPayload, email: "" } })
+        .success,
+    ).toBe(true);
+    expect(
+      registerCafeSchema.safeParse({ body: { ...validPayload, email: "bad" } })
+        .success,
+    ).toBe(false);
+  });
+
+  it("accepts blank or valid social URLs and rejects plain text", () => {
+    expect(
+      registerCafeSchema.safeParse({
+        body: { ...validPayload, instagram: "", website: "https://example.com" },
+      }).success,
+    ).toBe(true);
+    expect(
+      registerCafeSchema.safeParse({
+        body: { ...validPayload, facebook: "not-a-url" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects mismatched account numbers", () => {
     const result = registerCafeSchema.safeParse({
       body: {

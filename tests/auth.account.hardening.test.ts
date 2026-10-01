@@ -8,6 +8,8 @@ vi.mock("../src/models/user", () => ({
   },
 }));
 
+vi.mock("../src/models/cafe", () => ({ default: { findOne: vi.fn() } }));
+
 
 
 vi.mock("../src/modules/auth/session.repository", () => ({
@@ -25,6 +27,7 @@ vi.mock("../src/config/logger.config", () => ({
 }));
 
 import User from "../src/models/user";
+import Cafe from "../src/models/cafe";
 import { revokeAllSessionsForUser } from "../src/modules/auth/session.repository";
 import {
   logoutAll,
@@ -45,6 +48,9 @@ describe("logoutAll", () => {
 describe("deleteAccount anonymization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(Cafe.findOne).mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+    } as never);
   });
 
   it("anonymizes student and revokes sessions", async () => {
@@ -96,5 +102,32 @@ describe("deleteAccount anonymization", () => {
     } as never);
 
     await expect(deleteAccount("owner1")).rejects.toThrow(/Cafe owners must/i);
+  });
+
+  it.each(["pending", "approved"])("prevents deletion when a %s cafe is linked by userId", async (status) => {
+    const user = {
+      _id: { toString: () => "owner1" }, role: status === "approved" ? "cafe_owner" : "student",
+      ownedCafe: null, save: vi.fn(), set: vi.fn(),
+    };
+    vi.mocked(User.findById).mockReturnValue({ select: vi.fn().mockResolvedValue(user) } as never);
+    vi.mocked(Cafe.findOne).mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue({ _id: "cafe1", status }) }),
+    } as never);
+    await expect(deleteAccount("owner1")).rejects.toThrow(/Cafe owners must/i);
+    expect(user.save).not.toHaveBeenCalled();
+  });
+
+  it("allows deletion when no cafe is linked", async () => {
+    const user = {
+      _id: { toString: () => "student1" }, role: "student", ownedCafe: null,
+      name: "Alice", email: "alice@example.com", set: vi.fn(), save: vi.fn(),
+    };
+    vi.mocked(User.findById).mockReturnValue({ select: vi.fn().mockResolvedValue(user) } as never);
+    vi.mocked(Cafe.findOne).mockReturnValue({
+      select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+    } as never);
+    vi.mocked(revokeAllSessionsForUser).mockResolvedValue(1);
+    await expect(deleteAccount("student1")).resolves.toBeDefined();
+    expect(user.save).toHaveBeenCalledOnce();
   });
 });

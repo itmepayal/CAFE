@@ -3,6 +3,7 @@ import { asyncHandler } from "../../utils/handlers/async.handler";
 import { extractRefreshToken } from "../../utils/auth/extract-token";
 import { sendAuthResponse } from "../../utils/response/auth.response";
 import { ApiResponse } from "../../utils/response/app.response";
+import { serializeCurrentUser } from "../../utils/response/user.serializer";
 import {
   UnauthorizedError,
 } from "../../utils/errors/app.error";
@@ -50,15 +51,15 @@ export const getCurrentUserController = asyncHandler(
     if (!user) {
       throw new UnauthorizedError("User no longer exists");
     }
-    ApiResponse.success(res, "Current user", user);
+    ApiResponse.success(res, "Current user", serializeCurrentUser(user));
   },
 );
 
 export const logoutController = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    await logout(extractRefreshToken(req));
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
+    await logout(req.user!.id, extractRefreshToken(req));
     ApiResponse.success(res, "Logout successful");
   },
 );

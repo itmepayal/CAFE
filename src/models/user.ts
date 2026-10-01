@@ -34,6 +34,7 @@ export interface IUser extends Document {
   deviceTokens: IDeviceToken[];
 
   adminNote: string;
+  bootstrapKey?: string;
 
   readonly isCafeOwner: boolean;
 
@@ -161,6 +162,10 @@ const userSchema = new Schema<IUser>(
       type: String,
       default: "",
     },
+    bootstrapKey: {
+      type: String,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -172,6 +177,7 @@ const userSchema = new Schema<IUser>(
 
 userSchema.index({ createdAt: -1 });
 userSchema.index({ providerId: 1 }, { unique: true });
+userSchema.index({ bootstrapKey: 1 }, { unique: true, sparse: true });
 userSchema.index({ role: 1, isBlocked: 1, createdAt: -1 });
 
 userSchema.virtual("isCafeOwner").get(function (this: IUser) {

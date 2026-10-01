@@ -44,51 +44,85 @@ export const createAdminInviteService = async (
 };
 
 export const validateAndConsumeAdminInvite = async (
-  inviteToken: string,
+  inviteToken?: string,
   userEmail?: string,
 ): Promise<{ isBootstrap: boolean }> => {
+  const existingAdmin = await User.findOne({
+    role: { $in: ["super_admin", "admin"] },
+  });
+
+  if (!existingAdmin) {
+    if (serverConfig.ADMIN_BOOTSTRAP_TOKEN) {
+      if (!inviteToken) throw new ForbiddenError("Bootstrap token is required");
+      if (inviteToken === serverConfig.ADMIN_BOOTSTRAP_TOKEN) {
+        return { isBootstrap: true };
+      }
+    }
+
+    if (!inviteToken) {
+      throw new ForbiddenError("Admin invite token is required for registration");
+    }
+    return consumeInvite(inviteToken, userEmail);
+  }
+
+  if (!inviteToken) {
+    throw new ForbiddenError(
+      "Admin invite token is required for registration",
+    );
+  }
+
   if (
     serverConfig.ADMIN_BOOTSTRAP_TOKEN &&
     inviteToken === serverConfig.ADMIN_BOOTSTRAP_TOKEN
   ) {
-    const existingAdmin = await User.findOne({ role: "super_admin" });
-
-    if (existingAdmin) {
-      throw new ForbiddenError(
-        "Bootstrap token can only be used when no admin exists",
-      );
-    }
-
-    return { isBootstrap: true };
+    throw new ForbiddenError(
+      "Bootstrap token can only be used when no admin exists",
+    );
   }
 
+  return consumeInvite(inviteToken, userEmail);
+};
+
+const consumeInvite = async (
+  inviteToken: string,
+  userEmail?: string,
+): Promise<{ isBootstrap: false }> => {
+  const tokenHash = hashToken(inviteToken);
+  const now = new Date();
   const invite = await AdminInvite.findOne({
-    tokenHash: hashToken(inviteToken),
+    tokenHash,
     usedAt: null,
-    expiresAt: { $gt: new Date() },
+    expiresAt: { $gt: now },
   });
+  if (!invite) throw new ForbiddenError("Invalid or expired invite token");
 
-  if (!invite) {
-    throw new ForbiddenError("Invalid or expired invite token");
-  }
-
-  if (invite.email && userEmail && invite.email !== userEmail.toLowerCase()) {
+  const normalizedEmail = userEmail?.toLowerCase().trim();
+  if (invite.email && invite.email !== normalizedEmail) {
     throw new ForbiddenError("This invite is restricted to a different email");
   }
 
-  invite.usedAt = new Date();
-  await invite.save();
-
+  const consumed = await AdminInvite.findOneAndUpdate(
+    {
+      tokenHash,
+      usedAt: null,
+      expiresAt: { $gt: now },
+      ...(invite.email ? { email: invite.email } : {}),
+    },
+    { $set: { usedAt: now } },
+    { new: true },
+  );
+  if (!consumed) throw new ForbiddenError("Invalid or expired invite token");
   return { isBootstrap: false };
 };
 
 export const markInviteUsedBy = async (
-  inviteToken: string,
+  inviteToken: string | undefined,
   userId: string,
 ): Promise<void> => {
   if (
-    serverConfig.ADMIN_BOOTSTRAP_TOKEN &&
-    inviteToken === serverConfig.ADMIN_BOOTSTRAP_TOKEN
+    !inviteToken ||
+    (serverConfig.ADMIN_BOOTSTRAP_TOKEN &&
+      inviteToken === serverConfig.ADMIN_BOOTSTRAP_TOKEN)
   ) {
     return;
   }

@@ -95,7 +95,7 @@ const cafeSchema = new Schema<ICafe>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
+      unique: true,
     },
 
     cafeName: {

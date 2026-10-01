@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { serializePublicUser } from "../src/utils/response/user.serializer";
+import { serializeCurrentUser, serializePublicUser } from "../src/utils/response/user.serializer";
 
 describe("Authentication Contract", () => {
   it("never contains sensitive fields in public user", () => {
@@ -32,5 +32,19 @@ describe("Authentication Contract", () => {
 
     expect(publicUser.id).toBe("user123");
     expect(publicUser.email).toBe("test@example.com");
+  });
+
+  it("keeps /auth/me to the safe current-user contract", () => {
+    const current = serializeCurrentUser({
+      _id: { toString: () => "user123" }, name: "John", email: "test@example.com",
+      profileImage: "avatar.png", phone: "123", role: "student", provider: "google",
+      providerId: "secret-subject", passwordHash: "secret", deviceTokens: [{ token: "secret" }],
+      ownedCafe: { bankDetails: { accountNumber: "secret" } }, favoriteCafes: [{ documents: ["secret"] }],
+      adminNote: "secret", refreshToken: "secret", isEmailVerified: true, university: "Uni", hostel: "Hostel",
+      isCafeOwner: false,
+    });
+    expect(current).toMatchObject({ id: "user123", name: "John", email: "test@example.com", role: "student" });
+    for (const key of ["providerId", "passwordHash", "deviceTokens", "ownedCafe", "favoriteCafes", "adminNote", "refreshToken"])
+      expect(current).not.toHaveProperty(key);
   });
 });

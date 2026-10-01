@@ -5,18 +5,19 @@ import {
   getCafeByIdService,
   getMyCafeService,
 } from "./cafe.service";
-import { uploadToCloudinary } from "../../config/cloudinary.config";
+import {
+  deleteFromCloudinary,
+  uploadToCloudinary,
+} from "../../config/cloudinary.config";
 import { collectFigmaRegistrationMediaErrors } from "./cafe.validation";
-import { BadRequestError } from "../../utils/errors/app.error";
+import {
+  BadRequestError,
+  UnauthorizedError,
+} from "../../utils/errors/app.error";
 import { ApiResponse } from "../../utils/response/app.response";
+import { logger } from "../../config/logger.config";
 
 type UploadedFiles = Record<string, Express.Multer.File[] | undefined>;
-
-const uploadFile = async (file: Express.Multer.File, folder: string) =>
-  uploadToCloudinary(file.path, folder);
-
-const uploadMany = async (files: Express.Multer.File[], folder: string) =>
-  Promise.all(files.map((file) => uploadFile(file, folder)));
 
 // =========================================
 // REGISTER CAFE CONTROLLER
@@ -26,30 +27,64 @@ export const registerCafeController = async (
   res: Response,
   next: NextFunction,
 ) => {
+  const uploadedAssetUrls: string[] = [];
+  const uploadTasks: Promise<string>[] = [];
+  let userId: string | undefined;
+  let stage = "request_validation";
   try {
-    const userId = req.user?.id as string;
-    const files = req.files as UploadedFiles;
+    userId = req.user?.id;
+    if (!userId) throw new UnauthorizedError("Authentication required");
+    const files = (req.files ?? {}) as UploadedFiles;
+    const uploadFile = (file: Express.Multer.File, folder: string) => {
+      stage = "cloudinary_upload";
+      if (!file?.path) {
+        throw new BadRequestError("Uploaded file is missing a valid temporary path");
+      }
+      const task = uploadToCloudinary(file.path, folder).then((url) => {
+        uploadedAssetUrls.push(url);
+        return url;
+      });
+      uploadTasks.push(task);
+      return task;
+    };
+    const uploadOne = (list: Express.Multer.File[] | undefined, folder: string) =>
+      list?.[0] ? uploadFile(list[0], folder) : Promise.resolve("");
+    const uploadList = (list: Express.Multer.File[] | undefined, folder: string) =>
+      list?.length ? Promise.all(list.map((file) => uploadFile(file, folder))) : Promise.resolve([]);
 
-    const layoutPhotos = files?.layoutPhotos?.length
-      ? await uploadMany(files.layoutPhotos, "cafes/layout")
-      : [];
+    const cafeImageFile = files.cafeImage?.length ? files.cafeImage : files.ownerPhoto;
+    const fssaiFile = files.fssaiCertificate?.length
+      ? files.fssaiCertificate
+      : files.shopEstablishmentCertificate;
 
-    const ownerPhoto = files?.ownerPhoto?.[0]
-      ? await uploadFile(files.ownerPhoto[0], "cafes")
-      : "";
-
-    const shopEstablishmentCertificate = files?.shopEstablishmentCertificate?.[0]
-      ? await uploadFile(files.shopEstablishmentCertificate[0], "cafes/docs")
-      : "";
-
-    const bankPassbookPhoto = files?.bankPassbookPhoto?.[0]
-      ? await uploadFile(files.bankPassbookPhoto[0], "cafes/docs")
-      : "";
+    const [
+      cafeImage,
+      menuImage,
+      gallery,
+      layoutPhotos,
+      interiorPhotos,
+      exteriorPhotos,
+      aadharPhoto,
+      panPhoto,
+      fssaiCertificate,
+      bankPassbookPhoto,
+    ] = await Promise.all([
+      uploadOne(cafeImageFile, "cafes"),
+      uploadOne(files.menuImage, "cafes/menu"),
+      uploadList(files.gallery, "cafes/gallery"),
+      uploadList(files.layoutPhotos, "cafes/layout"),
+      uploadList(files.interiorPhotos, "cafes/interior"),
+      uploadList(files.exteriorPhotos, "cafes/exterior"),
+      uploadOne(files.aadharPhoto, "cafes/docs"),
+      uploadOne(files.panPhoto, "cafes/docs"),
+      uploadOne(fssaiFile, "cafes/docs"),
+      uploadOne(files.bankPassbookPhoto, "cafes/docs"),
+    ]);
 
     const mediaErrors = collectFigmaRegistrationMediaErrors({
-      ownerPhoto,
+      cafeImage,
       layoutPhotos,
-      shopEstablishmentCertificate,
+      fssaiCertificate,
       bankPassbookPhoto,
     });
 
@@ -57,6 +92,7 @@ export const registerCafeController = async (
       throw new BadRequestError(mediaErrors.join(". "));
     }
 
+    stage = "build_registration_payload";
     const payload = {
       cafeName: req.body.cafeName,
       ownerName: req.body.ownerName,
@@ -79,20 +115,20 @@ export const registerCafeController = async (
         longitude: req.body.longitude ? Number(req.body.longitude) : undefined,
       },
 
-      cafeImage: ownerPhoto,
-      menuImage: "",
-      gallery: layoutPhotos,
+      cafeImage,
+      menuImage,
+      gallery,
       layoutPhotos,
-      interiorPhotos: [],
-      exteriorPhotos: [],
+      interiorPhotos,
+      exteriorPhotos,
 
       documents: {
-        aadharNumber: "",
-        aadharPhoto: "",
-        panNumber: "",
-        panPhoto: "",
-        fssaiNumber: "",
-        fssaiCertificate: shopEstablishmentCertificate,
+        aadharNumber: req.body.aadharNumber ?? "",
+        aadharPhoto,
+        panNumber: req.body.panNumber ?? "",
+        panPhoto,
+        fssaiNumber: req.body.fssaiNumber ?? "",
+        fssaiCertificate,
       },
 
       bankDetails: {
@@ -100,23 +136,105 @@ export const registerCafeController = async (
         accountNumber: req.body.accountNumber,
         bankName: req.body.bankName ?? "",
         ifscCode: req.body.ifscCode,
-        upiId: "",
+        upiId: req.body.upiId ?? "",
         gstId: req.body.gstId ?? "",
         bankPassbookPhoto,
       },
 
-      socialMedia: { instagram: "", facebook: "", website: "" },
+      socialMedia: {
+        instagram: req.body.instagram ?? "",
+        facebook: req.body.facebook ?? "",
+        website: req.body.website ?? "",
+      },
       registrationFeedback: "",
       supportsDelivery: req.body.supportsDelivery === "true",
     };
 
+    stage = "registration_service";
     const cafe = await registerCafeService(userId, payload);
-    ApiResponse.success(res, "Cafe registered successfully", cafe, 201);
+    ApiResponse.success(res, "Cafe registered successfully", {
+      _id: cafe._id,
+      cafeName: cafe.cafeName,
+      status: cafe.status,
+      isApproved: cafe.isApproved,
+      createdAt: cafe.createdAt,
+      updatedAt: cafe.updatedAt,
+    }, 201);
   } catch (error) {
+    const errorRecord = error && typeof error === "object"
+      ? error as { name?: string; message?: string; stack?: string; code?: string | number; statusCode?: number }
+      : undefined;
+    const sensitiveValues = [
+      req.body?.accountNumber,
+      req.body?.confirmAccountNumber,
+      req.body?.aadharNumber,
+      req.body?.panNumber,
+      ...uploadedAssetUrls,
+      process.env.MONGODB_URI,
+      process.env.JWT_ACCESS_SECRET,
+      process.env.JWT_REFRESH_SECRET,
+      process.env.CLOUDINARY_API_KEY,
+      process.env.CLOUDINARY_API_SECRET,
+      process.env.CASHFREE_SECRET_KEY,
+    ].filter((value): value is string => typeof value === "string" && value.length >= 4);
+    const redact = (value?: string) => sensitiveValues.reduce(
+      (result, secret) => result.split(secret).join("[REDACTED]"),
+      value ?? "",
+    );
+    const inferredStatus = errorRecord?.code === 11000
+      ? 409
+      : ["ValidationError", "CastError"].includes(errorRecord?.name ?? "")
+        ? 400
+        : 500;
+    const errorStatus = errorRecord?.statusCode ?? inferredStatus;
+    let rawErrorMessage = error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : errorRecord?.message;
+    if (!rawErrorMessage && error !== undefined) {
+      try {
+        rawErrorMessage = JSON.stringify(error);
+      } catch {
+        rawErrorMessage = String(error);
+      }
+    }
+    const errorDetails = {
+      userId,
+      stage,
+      errorName: error instanceof Error ? error.name : errorRecord?.name,
+      errorCode: errorRecord?.code,
+      errorMessage: redact(rawErrorMessage),
+      stack: redact(error instanceof Error ? error.stack : errorRecord?.stack),
+    };
+    if (errorStatus >= 500) {
+      logger.error("Cafe registration failed", errorDetails);
+    } else {
+      logger.warn("Cafe registration request rejected", errorDetails);
+    }
+    await Promise.allSettled(uploadTasks);
+    const cleanupResults = await Promise.allSettled(
+      uploadedAssetUrls.map((url) => deleteFromCloudinary(url)),
+    );
+    cleanupResults.forEach((result) => {
+      if (result.status === "rejected") {
+        const cleanupError = result.reason as {
+          name?: string;
+          message?: string;
+          stack?: string;
+          code?: string | number;
+        };
+        logger.error("Failed to clean up Cafe registration Cloudinary asset", {
+          errorName: cleanupError?.name,
+          errorCode: cleanupError?.code,
+          errorMessage: redact(cleanupError?.message),
+          stack: redact(cleanupError?.stack),
+        });
+      }
+    });
     next(error);
   }
 };
-
 
 // =========================================
 // GET APPROVED CAFES

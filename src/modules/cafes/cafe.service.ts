@@ -1,13 +1,22 @@
 import {
   createCafe,
   findApprovedCafes,
-  findCafeById,
+  findPublicCafeById,
   findCafeByUserId,
   updatedCafe,
 } from "./cafe.repository";
 import { BadRequestError, ConflictError, NotFoundError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
 import { emitAdminCafeRequest } from "../../socket/admin";
+
+const pendingState = (payload: any) => ({
+  status: "pending",
+  isBlocked: false,
+  isVisible: false,
+  isOpen: false,
+  isFeatured: false,
+  supportsDelivery: payload.supportsDelivery ?? false,
+});
 
 // =========================================
 // REGISTER CAFE
@@ -22,12 +31,7 @@ export const registerCafeService = async (userId: string, payload: any) => {
       const cafe = await updatedCafe(existingCafe._id.toString(), {
         ...payload,
         userId,
-        status: "pending",
-        isBlocked: false,
-        isVisible: false,
-        isOpen: false,
-        isFeatured: false,
-        supportsDelivery: payload.supportsDelivery ?? false,
+        ...pendingState(payload),
         adminNote: "",
         rejectedAt: null,
         approvedAt: null,
@@ -49,16 +53,19 @@ export const registerCafeService = async (userId: string, payload: any) => {
     throw new ConflictError("Cafe already registered for this user");
   }
 
-  const cafe = await createCafe({
-    ...payload,
-    userId,
-    status: "pending",
-    isBlocked: false,
-    isVisible: false,
-    isOpen: false,
-    isFeatured: false,
-    supportsDelivery: payload.supportsDelivery ?? false,
-  });
+  let cafe;
+  try {
+    cafe = await createCafe({
+      ...payload,
+      userId,
+      ...pendingState(payload),
+    });
+  } catch (error) {
+    if ((error as { code?: number })?.code === 11000) {
+      throw new ConflictError("Cafe already registered for this user");
+    }
+    throw error;
+  }
 
   logger.info(`Cafe registered with id: ${cafe?._id} (pending admin approval)`);
 
@@ -91,7 +98,7 @@ export const getApprovedCafesService = async (
 export const getCafeByIdService = async (id: string) => {
   logger.info(`Fetching cafe by id: ${id}`);
 
-  const cafe = await findCafeById(id);
+  const cafe = await findPublicCafeById(id);
 
   if (!cafe) {
     logger.warn(`Cafe not found: ${id}`);
@@ -106,9 +113,7 @@ export const getCafeByIdService = async (id: string) => {
     throw new NotFoundError("Cafe not found");
   }
 
-  const { bankDetails, documents, registrationFeedback, adminNote, ...publicCafe } = cafe as any;
-
-  return publicCafe;
+  return cafe;
 };
 
 // =========================================

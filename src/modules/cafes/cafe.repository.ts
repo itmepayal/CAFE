@@ -1,5 +1,33 @@
 import Cafe, { ICafe } from "../../models/cafe";
 
+const PUBLIC_CAFE_PROJECTION = [
+  "cafeName",
+  "ownerName",
+  "description",
+  "address",
+  "location",
+  "cafeImage",
+  "menuImage",
+  "gallery",
+  "layoutPhotos",
+  "interiorPhotos",
+  "exteriorPhotos",
+  "socialMedia",
+  "isOpen",
+  "isVisible",
+  "isFeatured",
+  "supportsDelivery",
+  "status",
+  "rating",
+  "createdAt",
+  "updatedAt",
+].join(" ");
+
+const addPublicVirtuals = <T extends { status: string }>(cafe: T) => ({
+  ...cafe,
+  isApproved: cafe.status === "approved",
+});
+
 // =========================================
 // CREATE CAFE
 // =========================================
@@ -38,7 +66,13 @@ export const findApprovedCafes = async (
   const skip = (page - 1) * limit;
 
   const [cafes, total] = await Promise.all([
-    Cafe.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    Cafe.find(filter)
+      .select(PUBLIC_CAFE_PROJECTION)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .then((results) => results.map((cafe) => addPublicVirtuals(cafe))),
     Cafe.countDocuments(filter),
   ]);
 
@@ -50,6 +84,11 @@ export const findApprovedCafes = async (
 // =========================================
 export const findCafeById = async (id: string): Promise<ICafe | null> => {
   return await Cafe.findById(id).lean();
+};
+
+export const findPublicCafeById = async (id: string) => {
+  const cafe = await Cafe.findById(id).select(PUBLIC_CAFE_PROJECTION).lean();
+  return cafe ? addPublicVirtuals(cafe) : null;
 };
 
 // =========================================

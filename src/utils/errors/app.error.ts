@@ -121,6 +121,41 @@ export class ConflictError implements AppError {
   }
 }
 
+export class BadGatewayError implements AppError {
+  statusCode: number;
+  message: string;
+  name: string;
+  cause?: unknown;
+  constructor(message: string, cause?: unknown) {
+    this.statusCode = 502;
+    this.message = message;
+    this.name = "BadGatewayError";
+    this.cause = cause;
+  }
+}
+
+export class ServiceUnavailableError implements AppError {
+  statusCode: number;
+  message: string;
+  name: string;
+  constructor(message: string) {
+    this.statusCode = 503;
+    this.message = message;
+    this.name = "ServiceUnavailableError";
+  }
+}
+
+export class PayloadTooLargeError implements AppError {
+  statusCode: number;
+  message: string;
+  name: string;
+  constructor(message: string) {
+    this.statusCode = 413;
+    this.message = message;
+    this.name = "PayloadTooLargeError";
+  }
+}
+
 /**
  * Represents an error for unimplemented functionality.
  * This error is used to indicate that a certain feature or method

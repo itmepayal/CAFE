@@ -7,9 +7,8 @@ import {
 } from "../../utils/jwt/token.jwt";
 import {
   createSession,
-  findActiveSessionByTokenHash,
-  revokeSessionByTokenHash,
-  revokeSessionFamily,
+  consumeAndCreateReplacementSession,
+  revokeSessionByTokenHashAndUser,
 } from "./session.repository";
 
 export interface AuthTokensResult {
@@ -71,15 +70,6 @@ export const rotateRefreshToken = async (
   decoded: { sessionId: string; familyId: string },
 ): Promise<AuthTokensResult> => {
   const tokenHash = hashRefreshToken(refreshToken);
-  const session = await findActiveSessionByTokenHash(tokenHash);
-
-  if (!session) {
-    await revokeSessionFamily(decoded.familyId);
-    throw new Error("Invalid refresh token session");
-  }
-
-  await revokeSessionByTokenHash(tokenHash);
-
   const newSessionId = crypto.randomUUID();
   const accessToken = generateAccessToken(user);
   const { refreshToken: newRefreshToken, tokenHash: newTokenHash } =
@@ -89,13 +79,22 @@ export const rotateRefreshToken = async (
       familyId: decoded.familyId,
     });
 
-  await createSession({
-    userId: user._id.toString(),
-    sessionId: newSessionId,
-    familyId: decoded.familyId,
-    tokenHash: newTokenHash,
-    expiresAt: getRefreshTokenExpiry(),
-  });
+  const rotated = await consumeAndCreateReplacementSession(
+    {
+      tokenHash,
+      userId: user._id.toString(),
+      sessionId: decoded.sessionId,
+      familyId: decoded.familyId,
+    },
+    {
+      userId: user._id.toString(),
+      sessionId: newSessionId,
+      familyId: decoded.familyId,
+      tokenHash: newTokenHash,
+      expiresAt: getRefreshTokenExpiry(),
+    },
+  );
+  if (!rotated) throw new Error("Invalid refresh token session");
 
   return {
     user,
@@ -105,11 +104,16 @@ export const rotateRefreshToken = async (
 };
 
 export const revokeRefreshToken = async (
+  userId: string,
   refreshToken?: string,
 ): Promise<void> => {
   if (!refreshToken) {
     return;
   }
 
-  await revokeSessionByTokenHash(hashRefreshToken(refreshToken));
+  const revoked = await revokeSessionByTokenHashAndUser(
+    hashRefreshToken(refreshToken),
+    userId,
+  );
+  if (!revoked) throw new Error("Refresh session not found for authenticated user");
 };

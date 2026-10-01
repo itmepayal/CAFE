@@ -33,6 +33,7 @@ import {
 import { hashPassword, comparePassword } from "../../utils/auth/password";
 import { resolveCafeOwnerLoginMeta } from "./cafe-owner-auth.meta";
 import User from "../../models/user";
+import Cafe from "../../models/cafe";
 import { revokeAllSessionsForUser } from "./session.repository";
 
 export { resolveCafeOwnerLoginMeta } from "./cafe-owner-auth.meta";
@@ -140,6 +141,10 @@ export const refreshTokens = async ({
     logger.warn(`Blocked user attempted token refresh: ${user._id}`);
     throw new UnauthorizedError("Account blocked");
   }
+  if (!user.isActive) {
+    logger.warn(`Inactive user attempted token refresh: ${user._id}`);
+    throw new UnauthorizedError("Account inactive");
+  }
 
   try {
     const tokens = await rotateRefreshToken(user, refreshToken, decoded);
@@ -188,13 +193,10 @@ export const adminRegister = async ({
     throw new ConflictError("An account with this email already exists");
   }
 
-  if (!inviteToken) {
-    throw new UnauthorizedError(
-      "Admin invite token is required for registration",
-    );
-  }
-
-  const { isBootstrap } = await validateAndConsumeAdminInvite(inviteToken, normalizedEmail);
+  const { isBootstrap } = await validateAndConsumeAdminInvite(
+    inviteToken,
+    normalizedEmail,
+  );
 
   const passwordHash = await hashPassword(password);
   const expectedRole = isBootstrap ? "super_admin" : "admin";
@@ -204,6 +206,7 @@ export const adminRegister = async ({
     email: normalizedEmail,
     passwordHash,
     role: expectedRole,
+    ...(isBootstrap ? { bootstrapKey: "initial-super-admin" } : {}),
   });
 
   await markInviteUsedBy(inviteToken, user._id.toString());
@@ -260,9 +263,13 @@ export const cafeOwnerLogin = async ({
   return { ...result, meta };
 };
 
-export const logout = async (refreshToken?: string): Promise<void> => {
-  await revokeRefreshToken(refreshToken);
-  logger.info("User session revoked");
+export const logout = async (userId: string, refreshToken?: string): Promise<void> => {
+  try {
+    await revokeRefreshToken(userId, refreshToken);
+  } catch {
+    throw new UnauthorizedError("Invalid refresh token");
+  }
+  logger.info("User session revoked", { userId });
 };
 
 
@@ -285,7 +292,8 @@ export const deleteAccount = async (userId: string): Promise<{ message: string }
     throw new BadRequestError("Super admin accounts cannot be self-deleted");
   }
 
-  if (user.role === "cafe_owner" && user.ownedCafe) {
+  const ownedCafe = await Cafe.findOne({ userId: user._id }).select("_id status").lean();
+  if (ownedCafe || (user.role === "cafe_owner" && user.ownedCafe)) {
     throw new BadRequestError(
       "Cafe owners must transfer or close their cafe before deleting the account",
     );

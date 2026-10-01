@@ -6,7 +6,7 @@ import {
   getCafeByIdController,
 } from "./cafe.controller";
 
-import { upload } from "../../config/multer.config";
+import { cafeRegistrationUpload } from "../../config/multer.config";
 import { authenticate, authorize } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate.middleware";
 
@@ -65,7 +65,7 @@ const cafeRouter = Router();
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/StudentCafeCard'
+ *                     $ref: '#/components/schemas/PublicCafe'
  */
 cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
 
@@ -91,9 +91,9 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *               - accountNumber
  *               - confirmAccountNumber
  *               - ifscCode
- *               - ownerPhoto
+ *               - cafeImage
  *               - layoutPhotos
- *               - shopEstablishmentCertificate
+ *               - fssaiCertificate
  *               - bankPassbookPhoto
  *             properties:
  *               cafeName:
@@ -105,6 +105,10 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *               mobile:
  *                 type: string
  *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Optional; an empty string is accepted.
+ *               searchLocation:
  *                 type: string
  *               street:
  *                 type: string
@@ -122,9 +126,22 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *                 type: number
  *               longitude:
  *                 type: number
+ *               supportsDelivery:
+ *                 type: string
+ *                 enum: ["true", "false"]
+ *                 description: Optional; defaults to false.
  *               gstId:
  *                 type: string
  *                 description: Optional GST ID
+ *               aadharNumber:
+ *                 type: string
+ *                 description: Optional, 12 digits
+ *               panNumber:
+ *                 type: string
+ *                 description: Optional
+ *               fssaiNumber:
+ *                 type: string
+ *                 description: Optional, 14 digits
  *               accountHolderName:
  *                 type: string
  *               accountNumber:
@@ -135,38 +152,98 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *                 type: string
  *               ifscCode:
  *                 type: string
- *               ownerPhoto:
+ *               upiId:
+ *                 type: string
+ *               instagram:
+ *                 type: string
+ *               facebook:
+ *                 type: string
+ *               website:
+ *                 type: string
+ *               cafeImage:
  *                 type: string
  *                 format: binary
- *               layoutPhotos:
+ *                 description: Required. Legacy ownerPhoto is accepted as a fallback.
+ *               menuImage:
+ *                 type: string
+ *                 format: binary
+ *                 description: Optional.
+ *               gallery:
  *                 type: array
+ *                 description: Optional independent gallery uploads.
  *                 items:
  *                   type: string
  *                   format: binary
- *               shopEstablishmentCertificate:
+ *               layoutPhotos:
+ *                 type: array
+ *                 minItems: 2
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               interiorPhotos:
+ *                 type: array
+ *                 description: Optional.
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               exteriorPhotos:
+ *                 type: array
+ *                 description: Optional.
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               aadharPhoto:
  *                 type: string
  *                 format: binary
+ *                 description: Optional.
+ *               panPhoto:
+ *                 type: string
+ *                 format: binary
+ *                 description: Optional.
+ *               fssaiCertificate:
+ *                 type: string
+ *                 format: binary
+ *                 description: Required. Legacy shopEstablishmentCertificate is accepted as a fallback.
  *               bankPassbookPhoto:
  *                 type: string
  *                 format: binary
  *     responses:
  *       201:
  *         description: Cafe registered successfully
+ *       400:
+ *         description: Invalid request or unsupported upload.
+ *       401:
+ *         description: Authentication required.
+ *       403:
+ *         description: User is not authorized to register a cafe.
+ *       409:
+ *         description: Cafe already registered for this user.
+ *       422:
+ *         description: Validation failed.
+ *       500:
+ *         description: Internal server error.
  */
 cafeRouter.post(
   "/register",
   authenticate,
   authorize("student", "cafe_owner", "super_admin"),
-  upload.fields([
-    { name: "ownerPhoto", maxCount: 1 },
+  cafeRegistrationUpload.fields([
+    { name: "cafeImage", maxCount: 1 },
+    { name: "menuImage", maxCount: 1 },
+    { name: "gallery", maxCount: 10 },
     { name: "layoutPhotos", maxCount: 10 },
-    { name: "shopEstablishmentCertificate", maxCount: 1 },
+    { name: "interiorPhotos", maxCount: 10 },
+    { name: "exteriorPhotos", maxCount: 10 },
+    { name: "aadharPhoto", maxCount: 1 },
+    { name: "panPhoto", maxCount: 1 },
+    { name: "fssaiCertificate", maxCount: 1 },
     { name: "bankPassbookPhoto", maxCount: 1 },
+    { name: "ownerPhoto", maxCount: 1 },
+    { name: "shopEstablishmentCertificate", maxCount: 1 },
   ]),
   validate(registerCafeSchema),
   registerCafeController,
 );
-
 
 /**
  * @swagger
@@ -197,6 +274,15 @@ cafeRouter.get("/my-cafe", authenticate, getMyCafeController);
  *     responses:
  *       200:
  *         description: Cafe details fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string }
+ *                 data:
+ *                   $ref: '#/components/schemas/PublicCafe'
  */
 cafeRouter.get("/:id", getCafeByIdController);
 

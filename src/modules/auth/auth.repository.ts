@@ -2,6 +2,7 @@ import User, { IUser } from "../../models/user";
 import {
   InternalServerError,
   NotFoundError,
+  ConflictError,
 } from "../../utils/errors/app.error";
 
 /**
@@ -28,20 +29,26 @@ interface CreateAppleUserPayload {
   role?: "student" | "cafe_owner" | "admin" | "super_admin";
 }
 
-/**
- * =========================================================
- * FIND USER BY PROVIDER ID OR EMAIL
- * =========================================================
- */
-export const findUserByProviderIdOrEmail = async (
+export const findUserByProviderIdentity = async (
+  provider: "google" | "apple",
   providerId: string,
-  email?: string,
 ): Promise<IUser | null> => {
-  return User.findOne({
-    $or: [{ providerId }, { email }],
-  }).catch(() => {
-    throw new InternalServerError("Failed to find user");
+  return User.findOne({ provider, providerId }).catch(() => {
+    throw new InternalServerError("Failed to find user by provider identity");
   });
+};
+
+const resolveDuplicateOAuthCreate = async (
+  error: unknown,
+  provider: "google" | "apple",
+  providerId: string,
+): Promise<IUser> => {
+  if ((error as { code?: number })?.code !== 11000) {
+    throw error;
+  }
+  const existing = await findUserByProviderIdentity(provider, providerId);
+  if (existing) return existing;
+  throw new ConflictError("OAuth identity conflicts with an existing account");
 };
 
 /**
@@ -76,10 +83,7 @@ export const findUserByProviderId = async (
  * =========================================================
  */
 export const findUserById = async (userId: string): Promise<IUser> => {
-  const user = await User.findById(userId)
-    .populate("ownedCafe")
-    .populate("favoriteCafes")
-    .catch(() => {
+  const user = await User.findById(userId).catch(() => {
       throw new InternalServerError("Failed to fetch user");
     });
 
@@ -112,19 +116,24 @@ export const findUserAuthStatusById = async (
 export const createGoogleUser = async (
   payload: CreateGoogleUserPayload,
 ): Promise<IUser> => {
-  return User.create({
-    name: payload.name,
-    email: payload.email,
-    profileImage: payload.profileImage,
-
-    provider: "google",
-    providerId: payload.providerId,
-    role: payload.role,
-
-    isEmailVerified: true,
-  }).catch(() => {
-    throw new InternalServerError("Failed to create Google user");
-  });
+  try {
+    return await User.create({
+      name: payload.name,
+      email: payload.email,
+      profileImage: payload.profileImage,
+      provider: "google",
+      providerId: payload.providerId,
+      role: payload.role,
+      isEmailVerified: true,
+    });
+  } catch (error) {
+    try {
+      return await resolveDuplicateOAuthCreate(error, "google", payload.providerId);
+    } catch (resolvedError) {
+      if (resolvedError instanceof ConflictError) throw resolvedError;
+      throw new InternalServerError("Failed to create Google user");
+    }
+  }
 };
 
 /**
@@ -135,19 +144,23 @@ export const createGoogleUser = async (
 export const createAppleUser = async (
   payload: CreateAppleUserPayload,
 ): Promise<IUser> => {
-  return User.create({
-    name: "Apple User",
-
-    email: payload.email || "",
-
-    provider: "apple",
-    providerId: payload.providerId,
-    role: payload.role,
-
-    isEmailVerified: true,
-  }).catch(() => {
-    throw new InternalServerError("Failed to create Apple user");
-  });
+  try {
+    return await User.create({
+      name: "Apple User",
+      email: payload.email || "",
+      provider: "apple",
+      providerId: payload.providerId,
+      role: payload.role,
+      isEmailVerified: true,
+    });
+  } catch (error) {
+    try {
+      return await resolveDuplicateOAuthCreate(error, "apple", payload.providerId);
+    } catch (resolvedError) {
+      if (resolvedError instanceof ConflictError) throw resolvedError;
+      throw new InternalServerError("Failed to create Apple user");
+    }
+  }
 };
 
 /**
@@ -196,17 +209,24 @@ export const createAdminGoogleUser = async (data: {
   providerId: string;
   role?: "super_admin" | "admin";
 }): Promise<IUser> => {
-  const user = await User.create({
-    name: data.name,
-    email: data.email,
-    profileImage: data.profileImage,
-    provider: "google",
-    providerId: data.providerId,
-    role: data.role ?? "admin",
-    isBlocked: false,
-  });
-
-  return user;
+  try {
+    return await User.create({
+      name: data.name,
+      email: data.email,
+      profileImage: data.profileImage,
+      provider: "google",
+      providerId: data.providerId,
+      role: data.role ?? "admin",
+      isBlocked: false,
+    });
+  } catch (error) {
+    try {
+      return await resolveDuplicateOAuthCreate(error, "google", data.providerId);
+    } catch (resolvedError) {
+      if (resolvedError instanceof ConflictError) throw resolvedError;
+      throw new InternalServerError("Failed to create admin user");
+    }
+  }
 };
 
 export const createAdminAppleUser = async (data: {
@@ -215,16 +235,23 @@ export const createAdminAppleUser = async (data: {
   name?: string;
   role?: "super_admin" | "admin";
 }): Promise<IUser> => {
-  const user = await User.create({
-    name: data.name ?? "Admin",
-    email: data.email,
-    provider: "apple",
-    providerId: data.providerId,
-    role: data.role ?? "admin",
-    isBlocked: false,
-  });
-
-  return user;
+  try {
+    return await User.create({
+      name: data.name ?? "Admin",
+      email: data.email,
+      provider: "apple",
+      providerId: data.providerId,
+      role: data.role ?? "admin",
+      isBlocked: false,
+    });
+  } catch (error) {
+    try {
+      return await resolveDuplicateOAuthCreate(error, "apple", data.providerId);
+    } catch (resolvedError) {
+      if (resolvedError instanceof ConflictError) throw resolvedError;
+      throw new InternalServerError("Failed to create admin user");
+    }
+  }
 };
 
 export const findUserByEmailWithPassword = async (
@@ -242,8 +269,21 @@ export const createAdminEmailUser = async (data: {
   email: string;
   passwordHash: string;
   role?: "super_admin" | "admin";
+  bootstrapKey?: string;
 }): Promise<IUser> => {
   const normalizedEmail = data.email.toLowerCase().trim();
+
+  if (data.bootstrapKey) {
+    // Fail closed if deployment has not materialized the schema index yet.
+    try {
+      await User.collection.createIndex(
+        { bootstrapKey: 1 },
+        { unique: true, sparse: true, name: "bootstrapKey_1" },
+      );
+    } catch {
+      throw new InternalServerError("Failed to secure initial admin registration");
+    }
+  }
 
   return User.create({
     name: data.name.trim(),
@@ -252,9 +292,13 @@ export const createAdminEmailUser = async (data: {
     providerId: `email:${normalizedEmail}`,
     passwordHash: data.passwordHash,
     role: data.role ?? "admin",
+    ...(data.bootstrapKey ? { bootstrapKey: data.bootstrapKey } : {}),
     isBlocked: false,
     isEmailVerified: true,
-  }).catch(() => {
+  }).catch((error: any) => {
+    if (error?.code === 11000 && (error?.keyPattern?.bootstrapKey || error?.keyValue?.bootstrapKey)) {
+      throw new ConflictError("Initial admin registration has already been claimed");
+    }
     throw new InternalServerError("Failed to create admin user");
   });
 };

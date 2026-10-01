@@ -4,7 +4,8 @@ import { verifyAppleToken } from "../../providers/apple.provider";
 import { UnauthorizedError, ConflictError } from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
 import {
-  findUserByProviderIdOrEmail,
+  findUserByProviderIdentity,
+  findUserByEmail,
   createGoogleUser,
   createAppleUser,
   createAdminGoogleUser,
@@ -35,8 +36,8 @@ export const verifyProviderToken = async (
       throw new UnauthorizedError("Invalid Google token");
     });
 
-    if (!googleUser.email) {
-      throw new UnauthorizedError("Email not provided by Google");
+    if (!googleUser.providerId || !googleUser.email || googleUser.emailVerified !== true) {
+      throw new UnauthorizedError("Invalid Google account identity");
     }
 
     return {
@@ -58,8 +59,8 @@ export const verifyProviderToken = async (
       throw new UnauthorizedError("Invalid Apple token");
     });
 
-    if (!appleUser.email) {
-      throw new UnauthorizedError("Email not provided by Apple");
+    if (!appleUser.providerId || !appleUser.email || appleUser.emailVerified !== true) {
+      throw new UnauthorizedError("Invalid Apple account identity");
     }
 
     return {
@@ -77,7 +78,17 @@ export const verifyProviderToken = async (
 export const findExistingUser = async (
   profile: ProviderProfile,
 ): Promise<IUser | null> => {
-  return findUserByProviderIdOrEmail(profile.providerId, profile.email);
+  const identityMatch = await findUserByProviderIdentity(
+    profile.provider,
+    profile.providerId,
+  );
+  if (identityMatch) return identityMatch;
+
+  const emailMatch = await findUserByEmail(profile.email);
+  if (emailMatch) {
+    throw new ConflictError("OAuth identity does not match an existing account");
+  }
+  return null;
 };
 
 export const findOrCreateUser = async (
@@ -87,15 +98,6 @@ export const findOrCreateUser = async (
   let user = await findExistingUser(profile);
 
   if (user) {
-    if (
-      user.provider !== profile.provider &&
-      user.providerId !== profile.providerId
-    ) {
-      throw new ConflictError(
-        `This email is already registered with ${user.provider}. Please sign in using ${user.provider}.`,
-      );
-    }
-
     return user;
   }
 
@@ -156,6 +158,11 @@ export const authenticateUser = async (
     throw new UnauthorizedError(message);
   }
 
+  if (!user.isActive) {
+    logger.warn(`Inactive user attempted login: ${user._id}`);
+    throw new UnauthorizedError("Account deactivated");
+  }
+
   const updatedUser = await updateUserSession(user);
   return issueAuthTokens(updatedUser);
 };
@@ -199,15 +206,6 @@ export const findOrCreateAdmin = async (
       await user.save();
     }
 
-    if (
-      user.provider !== profile.provider &&
-      user.providerId !== profile.providerId
-    ) {
-      throw new ConflictError(
-        `This email is already registered with ${user.provider}. Please sign in using ${user.provider}.`,
-      );
-    }
-
     return user;
   }
 
@@ -245,14 +243,6 @@ export const loginAdminWithProvider = async (
   const existingUser = await findExistingUser(profile);
 
   if (existingUser) {
-    if (
-      existingUser.provider !== profile.provider &&
-      existingUser.providerId !== profile.providerId
-    ) {
-      throw new ConflictError(
-        `This email is already registered with ${existingUser.provider}. Please sign in using ${existingUser.provider}.`,
-      );
-    }
     return authenticateUser(existingUser, { expectedRole: "super_admin" });
   }
 
