@@ -10,6 +10,7 @@ import {
   consumeAndCreateReplacementSession,
   revokeSessionByTokenHashAndUser,
 } from "./session.repository";
+import { UnauthorizedError } from "../../utils/errors/app.error";
 
 export interface AuthTokensResult {
   user: IUser;
@@ -94,7 +95,7 @@ export const rotateRefreshToken = async (
       expiresAt: getRefreshTokenExpiry(),
     },
   );
-  if (!rotated) throw new Error("Invalid refresh token session");
+  if (!rotated) throw new UnauthorizedError("Invalid or expired refresh token");
 
   return {
     user,

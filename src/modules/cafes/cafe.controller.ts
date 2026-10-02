@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import {
   registerCafeService,
   getApprovedCafesService,
@@ -16,17 +16,17 @@ import {
 } from "../../utils/errors/app.error";
 import { ApiResponse } from "../../utils/response/app.response";
 import { logger } from "../../config/logger.config";
+import { asyncHandler } from "../../utils/handlers/async.handler";
 
 type UploadedFiles = Record<string, Express.Multer.File[] | undefined>;
 
 // =========================================
 // REGISTER CAFE CONTROLLER
 // =========================================
-export const registerCafeController = async (
+export const registerCafeController = asyncHandler(async (
   req: Request,
   res: Response,
-  next: NextFunction,
-) => {
+): Promise<void> => {
   const uploadedAssetUrls: string[] = [];
   const uploadTasks: Promise<string>[] = [];
   let userId: string | undefined;
@@ -232,80 +232,65 @@ export const registerCafeController = async (
         });
       }
     });
-    next(error);
+    throw error;
   }
-};
+});
 
 // =========================================
 // GET APPROVED CAFES
 // =========================================
-export const getApprovedCafesController = async (
+export const getApprovedCafesController = asyncHandler(async (
   req: Request,
   res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const search = req.query.search as string | undefined;
-    const city = req.query.city as string | undefined;
-    const isOpen = req.query.isOpen as boolean | undefined;
-    const page = req.query.page ? Number(req.query.page) : 1;
-    const limit = req.query.limit ? Number(req.query.limit) : 10;
+): Promise<void> => {
+  const search = req.query.search as string | undefined;
+  const city = req.query.city as string | undefined;
+  const isOpen = req.query.isOpen as boolean | undefined;
+  const page = req.query.page ? Number(req.query.page) : 1;
+  const limit = req.query.limit ? Number(req.query.limit) : 10;
 
-    const result = await getApprovedCafesService(
-      search,
-      city,
-      page,
-      limit,
-      isOpen,
-    );
+  const result = await getApprovedCafesService(
+    search,
+    city,
+    page,
+    limit,
+    isOpen,
+  );
 
-    res.json({
-      success: true,
-      data: result.cafes,
-      pagination: {
-        total: result.total,
-        page: result.page,
-        limit: result.limit,
-        totalPages: Math.ceil(result.total / result.limit),
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+  ApiResponse.success(res, "Approved cafes fetched successfully", {
+    cafes: result.cafes,
+    pagination: {
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: Math.ceil(result.total / result.limit),
+    },
+  });
+});
 
 // =========================================
 // GET MY CAFE
 // =========================================
-export const getMyCafeController = async (
+export const getMyCafeController = asyncHandler(async (
   req: Request,
   res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const userId = req.user?.id as string;
+): Promise<void> => {
+  const userId = req.user?.id;
+  if (!userId) throw new UnauthorizedError("Authentication required");
 
-    const cafe = await getMyCafeService(userId);
+  const cafe = await getMyCafeService(userId);
 
-    ApiResponse.success(res, "My cafe", cafe);
-  } catch (error) {
-    next(error);
-  }
-};
+  ApiResponse.success(res, "My cafe", cafe);
+});
 
 // =========================================
 // GET CAFE BY ID
 // =========================================
-export const getCafeByIdController = async (
+export const getCafeByIdController = asyncHandler(async (
   req: Request,
   res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const cafe = await getCafeByIdService(req.params.id);
+): Promise<void> => {
+  const cafe = await getCafeByIdService(req.params.id);
 
-    ApiResponse.success(res, "Cafe fetched", cafe);
-  } catch (error) {
-    next(error);
-  }
-};
+  ApiResponse.success(res, "Cafe fetched", cafe);
+});

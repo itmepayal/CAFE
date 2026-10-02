@@ -1,4 +1,5 @@
 import Session, { ISession } from "../../models/session";
+import mongoose from "mongoose";
 
 interface CreateSessionPayload {
   userId: string;
@@ -80,10 +81,14 @@ export const revokeSessionFamily = async (familyId: string): Promise<void> => {
   );
 };
 
-export const revokeAllSessionsForUser = async (userId: string): Promise<number> => {
-  const result = await Session.updateMany(
-    { userId, revokedAt: null },
-    { revokedAt: new Date() },
-  );
+export const revokeAllSessionsForUser = async (
+  userId: string,
+  session?: mongoose.ClientSession,
+): Promise<number> => {
+  const filter = { userId, revokedAt: null };
+  const update = { revokedAt: new Date() };
+  const result = session
+    ? await Session.updateMany(filter, update, { session })
+    : await Session.updateMany(filter, update);
   return result.modifiedCount;
 };

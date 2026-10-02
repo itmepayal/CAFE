@@ -77,7 +77,7 @@ export const changeProfileController = asyncHandler(
       profileImage,
     });
 
-    ApiResponse.success(res, "Profile updated successfully", user);
+    ApiResponse.success(res, "Profile updated successfully", serializeCurrentUser(user));
   },
 );
 

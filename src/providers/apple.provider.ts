@@ -11,7 +11,8 @@ export const verifyAppleToken = async (identityToken: string) => {
     return {
       providerId: appleData.sub,
       email: appleData.email ?? undefined,
-      emailVerified: appleData.email_verified,
+      // Apple may encode this JWT claim as either a boolean or the string "true".
+      emailVerified: appleData.email_verified === true || appleData.email_verified === "true",
       firstName: "",
       lastName: "",
       avatar: null,

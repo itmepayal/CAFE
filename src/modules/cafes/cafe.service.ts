@@ -1,11 +1,22 @@
+import mongoose from "mongoose";
+import User from "../../models/user";
+import { ICafe } from "../../models/cafe";
 import {
   createCafe,
   findApprovedCafes,
   findPublicCafeById,
   findCafeByUserId,
+  findMyCafeByOwnerId,
+  hasActiveUndeletedAccount,
   updatedCafe,
 } from "./cafe.repository";
-import { BadRequestError, ConflictError, NotFoundError } from "../../utils/errors/app.error";
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  InternalServerError,
+  NotFoundError,
+} from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
 import { emitAdminCafeRequest } from "../../socket/admin";
 
@@ -23,54 +34,70 @@ const pendingState = (payload: any) => ({
 // =========================================
 export const registerCafeService = async (userId: string, payload: any) => {
   logger.info(`Registering cafe for user ${userId}`);
+  const mongoSession = await mongoose.startSession();
+  let cafe: ICafe | null = null;
+  try {
+    cafe = await mongoSession.withTransaction(async () => {
+      const owner = await User.findOne({
+        _id: userId,
+        role: { $in: ["student", "cafe_owner", "super_admin"] },
+        isActive: true,
+        isBlocked: false,
+        deletedAt: null,
+      }).session(mongoSession);
 
-  const existingCafe = await findCafeByUserId(userId);
+      if (!owner) {
+        throw new ForbiddenError("An active account is required to register a cafe");
+      }
 
-  if (existingCafe) {
-    if (existingCafe.status === "rejected") {
-      const cafe = await updatedCafe(existingCafe._id.toString(), {
+      const existingCafe = await findCafeByUserId(userId, mongoSession);
+      if (existingCafe) {
+        if (existingCafe.status !== "rejected") {
+          throw new ConflictError("Cafe already registered for this user");
+        }
+
+        const updated = await updatedCafe(existingCafe._id.toString(), {
+          ...payload,
+          userId,
+          ...pendingState(payload),
+          adminNote: "",
+          rejectedAt: null,
+          approvedAt: null,
+          approvedBy: null,
+        }, mongoSession);
+
+        if (!updated) {
+          throw new BadRequestError("Failed to re-submit cafe registration");
+        }
+
+        owner.ownedCafe = updated._id;
+        await owner.save({ session: mongoSession });
+        return updated;
+      }
+
+      const created = await createCafe({
         ...payload,
         userId,
         ...pendingState(payload),
-        adminNote: "",
-        rejectedAt: null,
-        approvedAt: null,
-        approvedBy: null,
-      });
+      }, mongoSession);
 
-      if (!cafe) {
-        throw new BadRequestError("Failed to re-submit cafe registration");
-      }
 
-      logger.info(`Rejected cafe re-submitted with id: ${cafe._id}`);
-
-      emitAdminCafeRequest(cafe);
-
-      return cafe;
-    }
-
-    logger.warn(`User ${userId} already has a registered cafe`);
-    throw new ConflictError("Cafe already registered for this user");
-  }
-
-  let cafe;
-  try {
-    cafe = await createCafe({
-      ...payload,
-      userId,
-      ...pendingState(payload),
+      owner.ownedCafe = created._id;
+      await owner.save({ session: mongoSession });
+      return created;
     });
   } catch (error) {
     if ((error as { code?: number })?.code === 11000) {
       throw new ConflictError("Cafe already registered for this user");
     }
     throw error;
+  } finally {
+    await mongoSession.endSession();
   }
 
-  logger.info(`Cafe registered with id: ${cafe?._id} (pending admin approval)`);
-
+  if (!cafe) throw new InternalServerError("Cafe registration transaction returned no cafe");
+  logger.info(`Cafe registered with id: ${cafe._id} (pending admin approval)`);
   emitAdminCafeRequest(cafe);
-
   return cafe;
 };
 
@@ -122,7 +149,11 @@ export const getCafeByIdService = async (id: string) => {
 export const getMyCafeService = async (userId: string) => {
   logger.info(`Fetching own cafe for user ${userId}`);
 
-  const cafe = await findCafeByUserId(userId);
+  if (!await hasActiveUndeletedAccount(userId)) {
+    throw new ForbiddenError("An active account is required to view its cafe");
+  }
+
+  const cafe = await findMyCafeByOwnerId(userId);
 
   if (!cafe) {
     throw new NotFoundError("No cafe registered for this user");
@@ -140,9 +171,38 @@ export const getMyCafeService = async (userId: string) => {
     return {
       status: "rejected",
       message: "Your cafe registration was rejected.",
-      adminNote: cafe.adminNote,
     };
   }
 
-  return cafe;
+  if (cafe.status !== "approved") {
+    throw new InternalServerError("Cafe registration has an invalid status");
+  }
+
+  // Defense in depth: never serialize the whole database model to the owner API.
+  return {
+    _id: cafe._id,
+    cafeName: cafe.cafeName,
+    ownerName: cafe.ownerName,
+    description: cafe.description,
+    mobile: cafe.mobile,
+    email: cafe.email,
+    address: cafe.address,
+    location: cafe.location,
+    cafeImage: cafe.cafeImage,
+    menuImage: cafe.menuImage,
+    gallery: cafe.gallery,
+    layoutPhotos: cafe.layoutPhotos,
+    interiorPhotos: cafe.interiorPhotos,
+    exteriorPhotos: cafe.exteriorPhotos,
+    socialMedia: cafe.socialMedia,
+    isOpen: cafe.isOpen,
+    isVisible: cafe.isVisible,
+    isFeatured: cafe.isFeatured,
+    supportsDelivery: cafe.supportsDelivery,
+    status: cafe.status,
+    registrationFeedback: cafe.registrationFeedback,
+    rating: cafe.rating,
+    createdAt: cafe.createdAt,
+    updatedAt: cafe.updatedAt,
+  };
 };

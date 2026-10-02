@@ -69,18 +69,29 @@ describe("Super Admin Invite Token - Production Enforcement Suite", () => {
     expect(createAdminEmailUser).not.toHaveBeenCalled();
   });
 
+  it("rejects the bootstrap token after an admin already exists", async () => {
+    vi.mocked(findUserByEmailWithPassword).mockResolvedValue(null);
+    vi.mocked(User.findOne).mockResolvedValue({ _id: "admin-1", role: "super_admin" } as any);
+    await expect(adminRegister({
+      name: "Another Root", email: "other-root@example.com", password: "Password123!", inviteToken: "configured-bootstrap-token",
+    })).rejects.toThrow(/only be used when no admin exists/i);
+    expect(AdminInvite.findOne).not.toHaveBeenCalled();
+    expect(createAdminEmailUser).not.toHaveBeenCalled();
+  });
+
   it("accepts the configured bootstrap token and atomically claims the first-admin key", async () => {
     vi.mocked(findUserByEmailWithPassword).mockResolvedValue(null);
     vi.mocked(User.findOne).mockResolvedValue(null);
     vi.mocked(createAdminEmailUser).mockResolvedValue({
       _id: "admin-1", name: "First Super Admin", email: "firstadmin@example.com", role: "super_admin",
     } as any);
-    await adminRegister({
+    const result = await adminRegister({
       name: "First Super Admin", email: "firstadmin@example.com", password: "Password123!", inviteToken: "configured-bootstrap-token",
     });
     expect(createAdminEmailUser).toHaveBeenCalledWith(expect.objectContaining({
       role: "super_admin", bootstrapKey: "initial-super-admin",
     }));
+    expect(JSON.stringify(result)).not.toContain("configured-bootstrap-token");
   });
 
   it("2. Second Super Admin registration without token -> REJECT", async () => {
@@ -129,8 +140,10 @@ describe("Super Admin Invite Token - Production Enforcement Suite", () => {
     expect(createAdminEmailUser).toHaveBeenCalledWith(
       expect.objectContaining({
         role: "admin",
+        passwordHash: "hashed-password",
       }),
     );
+    expect(res).not.toHaveProperty("inviteToken");
   });
 
   it("4. Invalid or non-existent invite token -> REJECT", async () => {

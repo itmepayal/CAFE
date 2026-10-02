@@ -102,6 +102,18 @@ export class ForbiddenError implements AppError {
   }
 }
 
+/** Represents a deleted account that must not be silently recreated. */
+export class AccountDeletedError implements AppError {
+  statusCode: number;
+  message: string;
+  name: string;
+  constructor(message = "This account has been deleted") {
+    this.statusCode = 403;
+    this.message = message;
+    this.name = "AccountDeletedError";
+  }
+}
+
 /**
  * Represents a Conflict error (HTTP 409).
  * This error is typically used to indicate that the request could not be completed

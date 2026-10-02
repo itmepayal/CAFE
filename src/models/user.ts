@@ -20,6 +20,7 @@ export interface IUser extends Document {
   isEmailVerified: boolean;
   isBlocked: boolean;
   isActive: boolean;
+  deletedAt: Date | null;
 
   ownedCafe: mongoose.Types.ObjectId | null;
 
@@ -110,6 +111,11 @@ const userSchema = new Schema<IUser>(
       default: true,
     },
 
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+
     ownedCafe: {
       type: Schema.Types.ObjectId,
       ref: "Cafe",
@@ -176,7 +182,10 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.index({ createdAt: -1 });
-userSchema.index({ providerId: 1 }, { unique: true });
+userSchema.index(
+  { provider: 1, providerId: 1 },
+  { unique: true, name: "provider_providerId_unique" },
+);
 userSchema.index({ bootstrapKey: 1 }, { unique: true, sparse: true });
 userSchema.index({ role: 1, isBlocked: 1, createdAt: -1 });
 

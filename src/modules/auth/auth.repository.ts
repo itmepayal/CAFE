@@ -186,8 +186,8 @@ export const updateProfileRepo = async (
   userId: string,
   payload: Partial<IUser>,
 ): Promise<IUser> => {
-  const user = await User.findByIdAndUpdate(
-    userId,
+  const user = await User.findOneAndUpdate(
+    { _id: userId, isActive: true, isBlocked: false, deletedAt: null },
     { $set: payload },
     {
       new: true,
@@ -196,7 +196,7 @@ export const updateProfileRepo = async (
   );
 
   if (!user) {
-    throw new NotFoundError("User not found");
+    throw new NotFoundError("User not found or unavailable");
   }
 
   return user;
@@ -298,6 +298,13 @@ export const createAdminEmailUser = async (data: {
   }).catch((error: any) => {
     if (error?.code === 11000 && (error?.keyPattern?.bootstrapKey || error?.keyValue?.bootstrapKey)) {
       throw new ConflictError("Initial admin registration has already been claimed");
+    }
+    const duplicateEmail = error?.keyPattern?.email || error?.keyValue?.email;
+    const duplicateEmailIdentity =
+      (error?.keyPattern?.provider && error?.keyPattern?.providerId) &&
+      (error?.keyValue?.provider === "email" || error?.keyValue?.providerId === `email:${normalizedEmail}`);
+    if (error?.code === 11000 && (duplicateEmail || duplicateEmailIdentity)) {
+      throw new ConflictError("An account with this email already exists");
     }
     throw new InternalServerError("Failed to create admin user");
   });

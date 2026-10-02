@@ -164,6 +164,10 @@ authRouter.patch(
  * /auth/logout:
  *   post:
  *     summary: Logout current user
+ *     description: >
+ *       Revokes the authenticated user's supplied refresh-token session and clears auth cookies.
+ *       Access JWTs are stateless and remain valid until expiry; bearer-token clients must discard
+ *       their access token locally.
  *     tags: [Auth]
  *     security:
  *       - cookieAuth: []
@@ -171,7 +175,7 @@ authRouter.patch(
  *       200:
  *         description: Logout successful
  *       401:
- *         description: Unauthorized
+ *         description: Supplied refresh session is invalid, expired, or already revoked.
  */
 authRouter.post("/logout", authenticate, logoutController);
 
@@ -180,6 +184,9 @@ authRouter.post("/logout", authenticate, logoutController);
  * /auth/logout-all:
  *   post:
  *     summary: Revoke all refresh sessions for the current user
+ *     description: >
+ *       Revokes all active refresh sessions owned by the authenticated user and clears current auth cookies.
+ *       Access JWTs are stateless and remain valid until expiry, so other devices must discard them locally.
  *     tags: [Auth]
  *     security:
  *       - cookieAuth: []
@@ -266,9 +273,8 @@ authRouter.post("/refresh-token", refreshTokenController);
  *                 example: SecurePass123
  *               inviteToken:
  *                 type: string
- *                 pattern: ^[0-9]{8}$
  *                 example: "58321471"
- *                 description: From POST /admin/invites or ADMIN_BOOTSTRAP_TOKEN
+ *                 description: 8-digit invite from POST /admin/invites or the configured ADMIN_BOOTSTRAP_TOKEN
  *     responses:
  *       201:
  *         description: Admin registered and logged in

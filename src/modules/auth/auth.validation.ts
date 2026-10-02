@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { indianMobileSchema } from "../../utils/validation/indian-fields";
+import { serverConfig } from "../../config";
 
 export const updateProfileSchema = z.object({
   body: z.object({
@@ -7,7 +8,7 @@ export const updateProfileSchema = z.object({
     phone: indianMobileSchema.optional(),
     university: z.string().min(2).max(150).optional(),
     hostel: z.string().min(2).max(100).optional(),
-  }),
+  }).strict(),
 });
 
 export const googleLoginSchema = z.object({
@@ -64,8 +65,11 @@ export const adminEmailRegisterSchema = z.object({
       .string()
       .min(8, "Password must be at least 8 characters")
       .max(128),
-    inviteToken: z.string().regex(/^[0-9]{8}$/, "Invite token must be exactly 8 digits").optional(),
-  }),
+    inviteToken: z.string().min(1).max(256).refine(
+      (token) => /^[0-9]{8}$/.test(token) || token === serverConfig.ADMIN_BOOTSTRAP_TOKEN,
+      "Invite token must be an 8-digit invite or the configured bootstrap token",
+    ).optional(),
+  }).strict(),
 });
 
 export const cafeOwnerLoginSchema = z.object({

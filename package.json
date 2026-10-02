@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "nodemon src/server.ts",
     "build": "tsc",
+    "migrate:user-provider-identity-index": "ts-node src/scripts/migrate-user-provider-identity-index.ts",
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest"

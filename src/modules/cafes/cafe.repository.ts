@@ -1,4 +1,6 @@
 import Cafe, { ICafe } from "../../models/cafe";
+import User from "../../models/user";
+import mongoose from "mongoose";
 
 const PUBLIC_CAFE_PROJECTION = [
   "cafeName",
@@ -23,6 +25,32 @@ const PUBLIC_CAFE_PROJECTION = [
   "updatedAt",
 ].join(" ");
 
+const OWNER_CAFE_PROJECTION = [
+  "cafeName",
+  "ownerName",
+  "description",
+  "mobile",
+  "email",
+  "address",
+  "location",
+  "cafeImage",
+  "menuImage",
+  "gallery",
+  "layoutPhotos",
+  "interiorPhotos",
+  "exteriorPhotos",
+  "socialMedia",
+  "isOpen",
+  "isVisible",
+  "isFeatured",
+  "supportsDelivery",
+  "status",
+  "registrationFeedback",
+  "rating",
+  "createdAt",
+  "updatedAt",
+].join(" ");
+
 const addPublicVirtuals = <T extends { status: string }>(cafe: T) => ({
   ...cafe,
   isApproved: cafe.status === "approved",
@@ -31,7 +59,14 @@ const addPublicVirtuals = <T extends { status: string }>(cafe: T) => ({
 // =========================================
 // CREATE CAFE
 // =========================================
-export const createCafe = async (data: Partial<ICafe>): Promise<ICafe> => {
+export const createCafe = async (
+  data: Partial<ICafe>,
+  session?: mongoose.ClientSession,
+): Promise<ICafe> => {
+  if (session) {
+    const [cafe] = await Cafe.create([data], { session });
+    return cafe;
+  }
   return await Cafe.create(data);
 };
 
@@ -96,16 +131,40 @@ export const findPublicCafeById = async (id: string) => {
 // =========================================
 export const findCafeByUserId = async (
   userId: string,
+  session?: mongoose.ClientSession,
 ): Promise<ICafe | null> => {
-  return await Cafe.findOne({ userId });
+  const query = Cafe.findOne({ userId });
+  if (session) query.session(session);
+  return await query;
+};
+
+export const findMyCafeByOwnerId = async (ownerId: string): Promise<Partial<ICafe> | null> => {
+  return Cafe.findOne({ userId: ownerId })
+    .select(OWNER_CAFE_PROJECTION)
+    .lean();
+};
+
+export const hasActiveUndeletedAccount = async (userId: string): Promise<boolean> => {
+  const user = await User.findOne({
+    _id: userId,
+    isActive: true,
+    isBlocked: false,
+    deletedAt: null,
+  }).select("_id").lean();
+  return Boolean(user);
 };
 
 // =========================================
 // UPDATE CAFE
 // =========================================
-export const updatedCafe = async (cafeId: string, payload: any) => {
+export const updatedCafe = async (
+  cafeId: string,
+  payload: any,
+  session?: mongoose.ClientSession,
+) => {
   return await Cafe.findByIdAndUpdate(cafeId, payload, {
     new: true,
+    ...(session ? { session } : {}),
   });
 };
 

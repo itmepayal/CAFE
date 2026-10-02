@@ -1,6 +1,6 @@
 import { IUser } from "../../models/user";
 import { verifyRefreshToken } from "../../utils/jwt/token.jwt";
-import { UnauthorizedError, ConflictError, BadRequestError } from "../../utils/errors/app.error";
+import { UnauthorizedError, ConflictError, BadRequestError, InternalServerError, AccountDeletedError, ForbiddenError } from "../../utils/errors/app.error";
 import {
   findUserById,
   updateProfileRepo,
@@ -34,6 +34,7 @@ import { hashPassword, comparePassword } from "../../utils/auth/password";
 import { resolveCafeOwnerLoginMeta } from "./cafe-owner-auth.meta";
 import User from "../../models/user";
 import Cafe from "../../models/cafe";
+import mongoose from "mongoose";
 import { revokeAllSessionsForUser } from "./session.repository";
 
 export { resolveCafeOwnerLoginMeta } from "./cafe-owner-auth.meta";
@@ -150,8 +151,16 @@ export const refreshTokens = async ({
     const tokens = await rotateRefreshToken(user, refreshToken, decoded);
     logger.info(`Token refreshed for user: ${user._id}`);
     return tokens;
-  } catch {
-    throw new UnauthorizedError("Invalid or expired refresh token");
+  } catch (error) {
+    if (error instanceof UnauthorizedError) throw error;
+
+    // Keep operational details server-side. The global error middleware returns
+    // only a generic 5xx response, while this log contains no refresh token.
+    logger.error("Refresh token rotation failed", {
+      userId: user._id.toString(),
+      error,
+    });
+    throw new InternalServerError("Unable to refresh session");
   }
 };
 
@@ -173,7 +182,18 @@ export const adminLogin = async ({
     throw new UnauthorizedError("Invalid email or password");
   }
 
-  const tokens = await authenticateUser(user, { expectedRole: "super_admin" });
+  let tokens: AuthResponse;
+  try {
+    tokens = await authenticateUser(user, { expectedRole: "super_admin" });
+  } catch (error) {
+    if (error instanceof AccountDeletedError) {
+      throw new ForbiddenError("Admin access unavailable");
+    }
+    if (error instanceof UnauthorizedError) {
+      throw new UnauthorizedError("Invalid email or password");
+    }
+    throw error;
+  }
   logger.info(`Admin email login successful for user: ${user._id}`);
   return tokens;
 };
@@ -283,40 +303,45 @@ export const logoutAll = async (userId: string): Promise<{ revoked: number }> =>
  * Soft-delete / anonymize account while preserving financial references.
  */
 export const deleteAccount = async (userId: string): Promise<{ message: string }> => {
-  const user = await User.findById(userId).select("+passwordHash");
-  if (!user) {
-    throw new BadRequestError("Account not found");
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      const user = await User.findById(userId).select("+passwordHash").session(session);
+      if (!user) throw new BadRequestError("Account not found");
+      if (user.role === "super_admin") {
+        throw new BadRequestError("Super admin accounts cannot be self-deleted");
+      }
+
+      const ownedCafe = await Cafe.findOne({ userId: user._id })
+        .select("_id status")
+        .session(session)
+        .lean();
+      if (ownedCafe || (user.role === "cafe_owner" && user.ownedCafe)) {
+        throw new BadRequestError(
+          "Cafe owners must transfer or close their cafe before deleting the account",
+        );
+      }
+
+      const anonId = user._id.toString();
+      user.name = "Deleted User";
+      user.email = `deleted_${anonId}@anonymized.local`;
+      user.phone = null;
+      user.profileImage = "";
+      user.deletedAt = new Date();
+      user.set("passwordHash", null);
+      user.isActive = false;
+      user.isBlocked = true;
+      user.deviceTokens = [];
+      user.favoriteCafes = [];
+      user.university = "";
+      user.hostel = "";
+      user.adminNote = "Account anonymized by user request";
+      await user.save({ session });
+      await revokeAllSessionsForUser(userId, session);
+    });
+  } finally {
+    await session.endSession();
   }
-
-  if (user.role === "super_admin") {
-    throw new BadRequestError("Super admin accounts cannot be self-deleted");
-  }
-
-  const ownedCafe = await Cafe.findOne({ userId: user._id }).select("_id status").lean();
-  if (ownedCafe || (user.role === "cafe_owner" && user.ownedCafe)) {
-    throw new BadRequestError(
-      "Cafe owners must transfer or close their cafe before deleting the account",
-    );
-  }
-
-  const anonId = user._id.toString();
-  user.name = "Deleted User";
-  user.email = `deleted_${anonId}@anonymized.local`;
-  user.phone = null;
-  user.profileImage = "";
-  user.providerId = `deleted_${anonId}`;
-  user.set("passwordHash", null);
-  user.isActive = false;
-  user.isBlocked = true;
-  user.deviceTokens = [];
-  user.favoriteCafes = [];
-  user.university = "";
-  user.hostel = "";
-  user.adminNote = "Account anonymized by user request";
-
-  await user.save();
-  await revokeAllSessionsForUser(userId);
-
   logger.info("Account anonymized", { userId });
 
   return {

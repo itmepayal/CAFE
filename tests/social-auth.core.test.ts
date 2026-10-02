@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { ConflictError, UnauthorizedError } from "../src/utils/errors/app.error";
+import {
+  ConflictError,
+  ForbiddenError,
+  AccountDeletedError,
+  UnauthorizedError,
+} from "../src/utils/errors/app.error";
 
 vi.mock("../src/providers/google.provider", () => ({
   verifyGoogleToken: vi.fn(),
@@ -34,6 +39,7 @@ import {
   createGoogleUser,
   createAppleUser,
   createAdminGoogleUser,
+  updateUserSession,
 } from "../src/modules/auth/auth.repository";
 import { issueAuthTokens } from "../src/modules/auth/auth.tokens";
 import {
@@ -134,6 +140,36 @@ describe("social-auth.core", () => {
     expect(issueAuthTokens).toHaveBeenCalledOnce();
   });
 
+  it("uses Google subject identity for new account creation, ignoring provider profile IDs", async () => {
+    vi.mocked(verifyGoogleToken).mockResolvedValue({
+      providerId: "stable-google-sub",
+      email: "verified@example.com",
+      emailVerified: true,
+    } as any);
+    const user = {
+      _id: "subject-user", provider: "google", providerId: "stable-google-sub",
+      email: "verified@example.com", role: "student", isActive: true, isBlocked: false,
+    } as any;
+    vi.mocked(createGoogleUser).mockResolvedValue(user);
+
+    const result = await loginWithProvider("google", "verified-id-token");
+    expect(verifyGoogleToken).toHaveBeenCalledWith("verified-id-token");
+    expect(createGoogleUser).toHaveBeenCalledWith(expect.objectContaining({
+      providerId: "stable-google-sub", role: "student", email: "verified@example.com",
+    }));
+    expect(result.user).toBe(user);
+  });
+
+  it("rejects an explicitly deleted user even if active flags are inconsistent", async () => {
+    const deletedUser = {
+      _id: "deleted-user", role: "student", deletedAt: new Date(),
+      isActive: true, isBlocked: false,
+    } as any;
+    await expect(authenticateUser(deletedUser)).rejects.toThrow(AccountDeletedError);
+    expect(updateUserSession).not.toHaveBeenCalled();
+    expect(issueAuthTokens).not.toHaveBeenCalled();
+  });
+
   it.each([
     { isActive: false, isBlocked: false },
     { isActive: true, isBlocked: true },
@@ -211,6 +247,27 @@ describe("social-auth.core", () => {
       expect(issueAuthTokens).toHaveBeenCalledOnce();
     }
   });
+
+  it.each(["student", "cafe_owner", "admin"] as const)(
+    "rejects %s role from the super-admin login boundary before session or token creation",
+    async (role) => {
+      const { issueAuthTokens } = await import("../src/modules/auth/auth.tokens");
+      const { updateUserSession } = await import("../src/modules/auth/auth.repository");
+      vi.mocked(updateUserSession).mockClear();
+      vi.mocked(issueAuthTokens).mockClear();
+
+      await expect(authenticateUser({
+        _id: `wrong-role-${role}`,
+        role,
+        isActive: true,
+        isBlocked: false,
+        deletedAt: null,
+      } as any, { expectedRole: "super_admin" })).rejects.toThrow(UnauthorizedError);
+
+      expect(updateUserSession).not.toHaveBeenCalled();
+      expect(issueAuthTokens).not.toHaveBeenCalled();
+    },
+  );
 
   it("loginWithProvider creates a student when user does not exist", async () => {
     vi.mocked(verifyGoogleToken).mockResolvedValue({
@@ -356,7 +413,7 @@ describe("social-auth.core", () => {
     expect(createAdminGoogleUser).not.toHaveBeenCalled();
   });
 
-  it("loginOrSignUpCafeOwnerWithProvider creates student when user does not exist", async () => {
+  it("loginOrSignUpCafeOwnerWithProvider creates a student for a new identity", async () => {
     vi.mocked(verifyGoogleToken).mockResolvedValue({
       providerId: "google-sub-6",
       email: "owner@example.com",
@@ -383,7 +440,7 @@ describe("social-auth.core", () => {
     );
 
     expect(createGoogleUser).toHaveBeenCalledOnce();
-    expect(createGoogleUser).toHaveBeenCalledWith(expect.objectContaining({ role: "cafe_owner" }));
+    expect(createGoogleUser).toHaveBeenCalledWith(expect.objectContaining({ role: "student" }));
     expect(result.user.role).toBe("student");
   });
 
@@ -405,6 +462,203 @@ describe("social-auth.core", () => {
 
     await expect(
       loginOrSignUpCafeOwnerWithProvider("google", "valid-google-token"),
-    ).rejects.toThrow("Please use the admin login portal");
+    ).rejects.toThrow(ForbiddenError);
+    expect(issueAuthTokens).not.toHaveBeenCalled();
+  });
+
+  it.each(["admin", "super_admin"] as const)(
+    "cafe-owner portal rejects existing %s before creating a session",
+    async (role) => {
+      vi.mocked(verifyGoogleToken).mockResolvedValue({
+        providerId: `google-${role}`,
+        email: `${role}@example.com`,
+        emailVerified: true,
+      } as any);
+      vi.mocked(findUserByProviderIdentity).mockResolvedValue({
+        _id: `${role}-1`,
+        email: `${role}@example.com`,
+        role,
+        provider: "google",
+        providerId: `google-${role}`,
+        isBlocked: false,
+        isActive: true,
+      } as any);
+
+      await expect(
+        loginOrSignUpCafeOwnerWithProvider("google", "valid-google-token"),
+      ).rejects.toThrow(ForbiddenError);
+      expect(issueAuthTokens).not.toHaveBeenCalled();
+      expect(createGoogleUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["student", "cafe_owner"] as const)(
+    "allows intended existing %s account",
+    async (role) => {
+      vi.mocked(verifyGoogleToken).mockResolvedValue({
+        providerId: `google-${role}`,
+        email: `${role}@example.com`,
+        emailVerified: true,
+      } as any);
+      vi.mocked(findUserByProviderIdentity).mockResolvedValue({
+        _id: `${role}-1`,
+        email: `${role}@example.com`,
+        role,
+        provider: "google",
+        providerId: `google-${role}`,
+        isBlocked: false,
+        isActive: true,
+      } as any);
+
+      const result = await loginOrSignUpCafeOwnerWithProvider(
+        "google",
+        "valid-google-token",
+      );
+
+      expect(result.user.role).toBe(role);
+      expect(issueAuthTokens).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([
+    ["blocked", true, true],
+    ["inactive", false, false],
+  ] as const)(
+    "rejects %s existing identities before creating a session",
+    async (_status, isBlocked, isActive) => {
+      vi.mocked(verifyGoogleToken).mockResolvedValue({
+        providerId: "google-disabled",
+        email: "disabled@example.com",
+        emailVerified: true,
+      } as any);
+      vi.mocked(findUserByProviderIdentity).mockResolvedValue({
+        _id: "disabled-user",
+        email: "disabled@example.com",
+        role: "cafe_owner",
+        provider: "google",
+        providerId: "google-disabled",
+        isBlocked,
+        isActive,
+      } as any);
+
+      await expect(
+        loginOrSignUpCafeOwnerWithProvider("google", "valid-google-token"),
+      ).rejects.toThrow(ForbiddenError);
+      expect(issueAuthTokens).not.toHaveBeenCalled();
+      expect(createGoogleUser).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {
+      provider: "google" as const,
+      providerId: "google-deleted",
+      email: "deleted@example.com",
+    },
+    {
+      provider: "apple" as const,
+      providerId: "apple-deleted",
+      email: "deleted@privaterelay.appleid.com",
+    },
+  ])("rejects a deleted $provider identity without recreating or issuing tokens", async (identity) => {
+    if (identity.provider === "google") {
+      vi.mocked(verifyGoogleToken).mockResolvedValue({
+        providerId: identity.providerId,
+        email: identity.email,
+        emailVerified: true,
+      } as any);
+    } else {
+      const { verifyAppleToken } = await import("../src/providers/apple.provider");
+      vi.mocked(verifyAppleToken).mockResolvedValue({
+        providerId: identity.providerId,
+        email: identity.email,
+        emailVerified: true,
+      } as any);
+    }
+
+    vi.mocked(findUserByProviderIdentity).mockResolvedValue({
+      _id: `deleted-${identity.provider}`,
+      provider: identity.provider,
+      providerId: identity.providerId,
+      email: `deleted_${identity.provider}@anonymized.local`,
+      role: "student",
+      isBlocked: true,
+      isActive: false,
+      deletedAt: new Date(),
+    } as any);
+
+    await expect(
+      loginOrSignUpCafeOwnerWithProvider(
+        identity.provider,
+        identity.provider === "google" ? "verified-google-token" : undefined,
+        identity.provider === "apple" ? "verified-apple-token" : undefined,
+      ),
+    ).rejects.toThrow(AccountDeletedError);
+
+    expect(createGoogleUser).not.toHaveBeenCalled();
+    expect(createAppleUser).not.toHaveBeenCalled();
+    expect(issueAuthTokens).not.toHaveBeenCalled();
+  });
+
+  it.each(["invalid signature", "wrong audience", "expired token"])(
+    "rejects Google token verification failure (%s) before account lookup or session creation",
+    async (failure) => {
+    vi.mocked(verifyGoogleToken).mockRejectedValueOnce(new Error(failure));
+
+    await expect(
+      loginWithProvider("google", "invalid-token"),
+    ).rejects.toThrow(UnauthorizedError);
+    expect(findUserByProviderIdentity).not.toHaveBeenCalled();
+    expect(findUserByEmail).not.toHaveBeenCalled();
+    expect(issueAuthTokens).not.toHaveBeenCalled();
+  });
+
+  it.each(["invalid signature", "wrong audience", "expired token"])(
+    "rejects Apple token verification failure (%s) before account lookup or session creation",
+    async (failure) => {
+      const { verifyAppleToken } = await import("../src/providers/apple.provider");
+      vi.mocked(verifyAppleToken).mockRejectedValueOnce(new Error(failure));
+
+      await expect(loginWithProvider("apple", undefined, "invalid-apple-token"))
+        .rejects.toThrow(UnauthorizedError);
+      expect(findUserByProviderIdentity).not.toHaveBeenCalled();
+      expect(findUserByEmail).not.toHaveBeenCalled();
+      expect(issueAuthTokens).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["google", "apple"] as const)("rejects %s OAuth login after deletion without new sessions", async (provider) => {
+    const providerId = `deleted-${provider}-subject`;
+    const email = "deleted@anonymized.local";
+    if (provider === "google") {
+      vi.mocked(verifyGoogleToken).mockResolvedValue({
+        providerId, email, emailVerified: true,
+      } as any);
+    } else {
+      const { verifyAppleToken } = await import("../src/providers/apple.provider");
+      vi.mocked(verifyAppleToken).mockResolvedValue({
+        providerId, email, emailVerified: true,
+      } as any);
+    }
+    vi.mocked(findUserByProviderIdentity).mockResolvedValue({
+      _id: `deleted-user-${provider}`,
+      provider,
+      providerId,
+      email,
+      role: "student",
+      deletedAt: new Date(),
+      isActive: false,
+      isBlocked: true,
+    } as any);
+
+    await expect(loginWithProvider(
+      provider,
+      provider === "google" ? "valid-google-token" : undefined,
+      provider === "apple" ? "valid-apple-token" : undefined,
+    )).rejects.toThrow(AccountDeletedError);
+    expect(updateUserSession).not.toHaveBeenCalled();
+    expect(issueAuthTokens).not.toHaveBeenCalled();
+    expect(createGoogleUser).not.toHaveBeenCalled();
+    expect(createAppleUser).not.toHaveBeenCalled();
   });
 });

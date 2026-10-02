@@ -24,4 +24,22 @@ describe("logout controller cookie handling", () => {
     expect(res.clearCookie).toHaveBeenCalledWith("refreshToken");
     expect(next).toHaveBeenCalled();
   });
+
+  it("supports cookie clearing without a refresh token and returns no token material", async () => {
+    logoutMock.mockResolvedValueOnce(undefined);
+    const res = { clearCookie: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+    const next = vi.fn();
+    const req = { user: { id: "user-a" }, cookies: {}, body: {} } as any;
+    logoutController(req, res, next);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(logoutMock).toHaveBeenCalledWith("user-a", undefined);
+    expect(res.clearCookie).toHaveBeenCalledWith("accessToken");
+    expect(res.clearCookie).toHaveBeenCalledWith("refreshToken");
+    expect(res.status).toHaveBeenCalledWith(200);
+    const responseBody = res.json.mock.calls[0][0];
+    expect(responseBody).toMatchObject({ success: true, message: "Logout successful", data: null });
+    expect(JSON.stringify(responseBody)).not.toMatch(/refreshToken|accessToken|token/i);
+    expect(next).not.toHaveBeenCalled();
+  });
 });

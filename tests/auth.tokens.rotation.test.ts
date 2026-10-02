@@ -20,6 +20,7 @@ vi.mock("../src/utils/jwt/token.jwt", () => ({
 
 import { rotateRefreshToken } from "../src/modules/auth/auth.tokens";
 import { consumeAndCreateReplacementSession } from "../src/modules/auth/session.repository";
+import { UnauthorizedError } from "../src/utils/errors/app.error";
 
 describe("single-use refresh rotation", () => {
   beforeEach(() => {
@@ -51,7 +52,7 @@ describe("single-use refresh rotation", () => {
     const user = { _id: { toString: () => "user1" } } as any;
     const decoded = { sessionId: "session1", familyId: "family1" };
     await rotateRefreshToken(user, "old-token", decoded);
-    await expect(rotateRefreshToken(user, "old-token", decoded)).rejects.toThrow(/Invalid refresh token session/);
+    await expect(rotateRefreshToken(user, "old-token", decoded)).rejects.toBeInstanceOf(UnauthorizedError);
     expect(sessionState.replacements).toBe(1);
   });
 });

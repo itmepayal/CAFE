@@ -9,8 +9,9 @@ import {
 import { cafeRegistrationUpload } from "../../config/multer.config";
 import { authenticate, authorize } from "../../middlewares/auth.middleware";
 import { validate } from "../../middlewares/validate.middleware";
+import { validateCafeRegistration } from "./cafe-registration-validation.middleware";
 
-import { registerCafeSchema, getCafeQuerySchema } from "./cafe.validation";
+import { getCafeQuerySchema } from "./cafe.validation";
 
 const cafeRouter = Router();
 
@@ -211,17 +212,19 @@ cafeRouter.get("/", validate(getCafeQuerySchema), getApprovedCafesController);
  *       201:
  *         description: Cafe registered successfully
  *       400:
- *         description: Invalid request or unsupported upload.
+ *         description: Invalid request data or unsupported upload.
  *       401:
  *         description: Authentication required.
  *       403:
  *         description: User is not authorized to register a cafe.
  *       409:
  *         description: Cafe already registered for this user.
- *       422:
- *         description: Validation failed.
+ *       413:
+ *         description: Uploaded file exceeds the size limit.
  *       500:
  *         description: Internal server error.
+ *       503:
+ *         description: Database unavailable.
  */
 cafeRouter.post(
   "/register",
@@ -241,7 +244,7 @@ cafeRouter.post(
     { name: "ownerPhoto", maxCount: 1 },
     { name: "shopEstablishmentCertificate", maxCount: 1 },
   ]),
-  validate(registerCafeSchema),
+  validateCafeRegistration,
   registerCafeController,
 );
 
@@ -256,6 +259,12 @@ cafeRouter.post(
  *     responses:
  *       200:
  *         description: Own cafe fetched successfully
+ *       401:
+ *         description: Authentication required or token invalid.
+ *       403:
+ *         description: Account is blocked or inactive.
+ *       404:
+ *         description: No cafe registration exists for this account.
  */
 cafeRouter.get("/my-cafe", authenticate, getMyCafeController);
 

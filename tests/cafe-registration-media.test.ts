@@ -49,13 +49,18 @@ const invokeController = async (files: ReturnType<typeof allMedia>) => {
       accountNumber: "123456789",
       ifscCode: "HDFC0001234",
       supportsDelivery: "false",
+      ownerId: "attacker-controlled-owner",
       latitude: "0",
       longitude: "78.5",
     },
   };
   const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
   const next = vi.fn();
-  await registerCafeController(req as never, res as never, next);
+  await new Promise<void>((resolve) => {
+    res.json.mockImplementation(() => { resolve(); return res as any; });
+    next.mockImplementation(() => { resolve(); });
+    registerCafeController(req as never, res as never, next);
+  });
   return { res, next };
 };
 
@@ -86,6 +91,9 @@ describe("Cafe registration media uploads", () => {
     expect(payload.bankDetails.bankPassbookPhoto).toContain("cafes/docs/bank.png");
     expect(payload.supportsDelivery).toBe(false);
     expect(payload.location.latitude).toBe(0);
+    expect(registerCafeServiceMock).toHaveBeenCalledWith("user-1", payload);
+    expect(payload.userId).toBeUndefined();
+    expect(payload.ownerId).toBeUndefined();
   });
 
   it("cleans uploaded assets when saving the Cafe fails", async () => {
@@ -120,6 +128,7 @@ describe("Cafe registration media uploads", () => {
     });
     const { res } = await invokeController(allMedia());
     const response = (res.json as any).mock.calls[0][0];
+    expect(res.status).toHaveBeenCalledWith(201);
     expect(response.data).toEqual(expect.objectContaining({ _id: "cafe-1", status: "pending" }));
     expect(response.data.bankDetails).toBeUndefined();
     expect(response.data.documents).toBeUndefined();

@@ -20,7 +20,10 @@ vi.mock("../src/config/logger.config", () => ({ logger: { info: vi.fn(), warn: v
 
 import { findUserById } from "../src/modules/auth/auth.repository";
 import { rotateRefreshToken, revokeRefreshToken } from "../src/modules/auth/auth.tokens";
+import { verifyRefreshToken } from "../src/utils/jwt/token.jwt";
 import { logout, refreshTokens } from "../src/modules/auth/auth.service";
+import { UnauthorizedError } from "../src/utils/errors/app.error";
+import { logger } from "../src/config/logger.config";
 
 describe("refresh and logout account status/session ownership", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -29,6 +32,31 @@ describe("refresh and logout account status/session ownership", () => {
     vi.mocked(findUserById).mockResolvedValue({ _id: "u1", isActive: true, isBlocked: false } as any);
     await expect(refreshTokens({ refreshToken: "valid" })).resolves.toMatchObject({ accessToken: "a", refreshToken: "r" });
     expect(rotateRefreshToken).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an invalid refresh JWT before user lookup or rotation", async () => {
+    vi.mocked(verifyRefreshToken).mockImplementationOnce(() => { throw new Error("invalid"); });
+    await expect(refreshTokens({ refreshToken: "invalid" })).rejects.toMatchObject({ statusCode: 401 });
+    expect(findUserById).not.toHaveBeenCalled();
+    expect(rotateRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it("preserves authentication failures from session rotation as 401", async () => {
+    vi.mocked(findUserById).mockResolvedValue({ _id: "u1", isActive: true, isBlocked: false } as any);
+    vi.mocked(rotateRefreshToken).mockRejectedValueOnce(new UnauthorizedError("Invalid or expired refresh token"));
+    await expect(refreshTokens({ refreshToken: "replayed" })).rejects.toMatchObject({ statusCode: 401 });
+  });
+
+  it.each([
+    Object.assign(new Error("server selection timeout"), { name: "MongoServerSelectionError" }),
+    Object.assign(new Error("transaction unsupported"), { name: "MongoServerError", code: 20 }),
+    new Error("unexpected repository failure"),
+  ])("classifies rotation infrastructure failures as 5xx", async (failure) => {
+    vi.mocked(findUserById).mockResolvedValue({ _id: "u1", isActive: true, isBlocked: false } as any);
+    vi.mocked(rotateRefreshToken).mockRejectedValueOnce(failure);
+    await expect(refreshTokens({ refreshToken: "secret-refresh-token" })).rejects.toMatchObject({ statusCode: 500 });
+    expect(logger.error).toHaveBeenCalledWith("Refresh token rotation failed", expect.objectContaining({ userId: "u1", error: failure }));
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain("secret-refresh-token");
   });
 
   it.each([
@@ -40,9 +68,23 @@ describe("refresh and logout account status/session ownership", () => {
     expect(rotateRefreshToken).not.toHaveBeenCalled();
   });
 
+  it("rejects refresh after account deletion and never rotates the revoked session", async () => {
+    vi.mocked(findUserById).mockResolvedValue({
+      _id: "u1", isActive: false, isBlocked: true, deletedAt: new Date(),
+    } as any);
+    await expect(refreshTokens({ refreshToken: "pre-deletion-refresh" }))
+      .rejects.toMatchObject({ statusCode: 401 });
+    expect(rotateRefreshToken).not.toHaveBeenCalled();
+  });
+
   it("revokes logout using the authenticated user ID", async () => {
     await logout("user-a", "own-refresh");
     expect(revokeRefreshToken).toHaveBeenCalledWith("user-a", "own-refresh");
+  });
+
+  it("treats a missing refresh token as cookie-clearing logout without revoking another session", async () => {
+    await expect(logout("user-a")).resolves.toBeUndefined();
+    expect(revokeRefreshToken).toHaveBeenCalledWith("user-a", undefined);
   });
 
   it("maps a refresh token not owned by the user to an auth rejection", async () => {

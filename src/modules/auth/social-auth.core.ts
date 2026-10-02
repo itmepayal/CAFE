@@ -1,7 +1,12 @@
 import { IUser } from "../../models/user";
 import { verifyGoogleToken } from "../../providers/google.provider";
 import { verifyAppleToken } from "../../providers/apple.provider";
-import { UnauthorizedError, ConflictError } from "../../utils/errors/app.error";
+import {
+  UnauthorizedError,
+  ForbiddenError,
+  AccountDeletedError,
+  ConflictError,
+} from "../../utils/errors/app.error";
 import { logger } from "../../config/logger.config";
 import {
   findUserByProviderIdentity,
@@ -140,6 +145,10 @@ export const authenticateUser = async (
   user: IUser,
   options?: AuthenticateUserOptions,
 ): Promise<AuthTokensResult> => {
+  if (user.deletedAt) {
+    throw new AccountDeletedError();
+  }
+
   if (user.isBlocked) {
     logger.warn(`Blocked user attempted login: ${user._id}`);
     throw new UnauthorizedError("Account blocked");
@@ -267,15 +276,23 @@ export const loginOrSignUpCafeOwnerWithProvider = async (
   identityToken?: string,
 ): Promise<AuthTokensResult> => {
   const profile = await verifyProviderToken(provider, token, identityToken);
-  const existingUser = await findExistingUser(profile);
+  // The cafe-owner portal onboards new identities as students; cafe-owner
+  // privileges are granted by the existing server-side cafe approval flow.
+  const user = await findOrCreateUser(profile, "student");
 
-  if (existingUser) {
-    if (existingUser.role === "super_admin") {
-      throw new UnauthorizedError("Please use the admin login portal");
-    }
-    return authenticateUser(existingUser);
+  if (user.deletedAt) {
+    throw new AccountDeletedError();
   }
 
-  const user = await findOrCreateUser(profile, "cafe_owner");
+  if (user.role !== "student" && user.role !== "cafe_owner") {
+    throw new ForbiddenError("This account cannot use the cafe owner login portal");
+  }
+  if (user.isBlocked) {
+    throw new ForbiddenError("Account blocked");
+  }
+  if (!user.isActive) {
+    throw new ForbiddenError("Account deactivated");
+  }
+
   return authenticateUser(user);
 };
