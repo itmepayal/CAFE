@@ -14,13 +14,6 @@ const menuRouter = Router();
 
 /**
  * @swagger
- * tags:
- *   name: Menu
- *   description: Cafe Menu Management
- */
-
-/**
- * @swagger
  * /menus/item/{itemId}:
  *   get:
  *     summary: Get menu item details
